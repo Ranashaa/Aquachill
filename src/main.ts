@@ -41,13 +41,16 @@ const game = new Phaser.Game({
 });
 services.game = game;
 
-const isGallery = new URLSearchParams(location.search).has('gallery');
+const params = new URLSearchParams(location.search);
+const isGallery = params.has('gallery');
+/** `?speed=10` accélère la simulation (pratique pour tester). */
+const speed = Math.max(1, Number(params.get('speed')) || 1);
 if (!isGallery) {
   services.ui = new UI(uiRoot);
 
   // La simulation avance à chaque image, quelle que soit la scène affichée.
   game.events.on(Phaser.Core.Events.STEP, (_time: number, delta: number) => {
-    sim.update(Math.min(delta, 250) / 1000);
+    sim.update((Math.min(delta, 250) / 1000) * speed);
   });
 
   game.events.once(Phaser.Core.Events.READY, () => {
@@ -84,3 +87,6 @@ if (!isGallery) {
   window.addEventListener('pagehide', saveOnUnload);
   document.addEventListener('pointerdown', () => services.audio.unlock(), { once: true });
 }
+
+// Accès de débogage en développement : window.aquachill.sim, etc.
+if (import.meta.env.DEV) (window as any).aquachill = services;

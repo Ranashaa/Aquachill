@@ -28,6 +28,14 @@ function sprite(key: string, scale = 1, frame = 0): HTMLImageElement {
   return pxImg(spriteUrl(key, frame), w, hh, scale);
 }
 
+/** Sprite agrandi au plus grand facteur entier qui tient dans la boîte (en px logiques). */
+function fit(key: string, maxW: number, maxH: number, maxScale = 5): HTMLImageElement {
+  const { w, h: hh } = spriteCanvasSize(key);
+  let scale = Math.min(maxScale, Math.floor(Math.min(maxW / w, maxH / hh)));
+  if (scale < 1) scale = Math.min(maxW / w, maxH / hh);
+  return pxImg(spriteUrl(key), w, hh, scale);
+}
+
 function waterBg(biome: Species['biome']): string {
   const p = BIOMES[biome].palette;
   return `background: linear-gradient(${p.waterTop}, ${p.waterBottom} 80%, ${p.sand} 80%);`;
@@ -47,14 +55,19 @@ export class UI {
   constructor(private root: HTMLElement) {
     root.append(this.hudTop, this.hudBottom, this.toasts);
     const sim = services.sim;
-    sim.events.on('coins', () => this.updateStats());
-    sim.events.on('xp', () => this.updateStats());
+    sim.events.on('coins', () => {
+      this.updateStats();
+      this.refreshBuildHint();
+    });
+    sim.events.on('xp', () => {
+      this.updateStats();
+      this.refreshBuildHint();
+    });
     sim.events.on('levelUp', (level) => {
       services.audio.play('levelUp');
       const newStars = STARS.filter((s) => s.level === level);
       this.toast(`La tour passe au niveau ${level} ! +${level * 15} pièces`, { icon: 'star' });
       if (newStars.length) this.toast('De nouvelles stars pourraient passer te rendre visite…', { icon: 'sparkle' });
-      this.refreshBuildHint();
     });
     sim.events.on('identifyChanged', () => this.renderHud());
     sim.events.on('fishArrived', ({ floor, fish, isNew }) => {
@@ -74,6 +87,7 @@ export class UI {
       if (this.mode === 'aquarium') this.refreshAquariumHud();
     });
     sim.events.on('starArrived', (v) => {
+      if (this.mode !== 'tower') return;
       services.audio.play('star');
       const star = STARS_BY_ID[v.star!];
       this.toast(`${star.name} visite la tour ! Touche-le pour un autographe.`, { img: starKey(star.id), duration: 5000 });
@@ -85,6 +99,7 @@ export class UI {
     });
     sim.events.on('cleaned', ({ reward }) => this.toast(`Vitre étincelante ! +${reward} pièces`, { icon: 'sparkle' }));
     sim.events.on('floorBuilt', (i) => {
+      this.refreshBuildHint();
       services.audio.play('build');
       const b = BIOMES[sim.state.floors[i].biome];
       this.toast(`Nouvel étage : ${b.name} ! De nouvelles espèces t’attendent.`, { icon: 'sparkle', duration: 5000 });
@@ -163,18 +178,19 @@ export class UI {
     this.updateStats();
   }
 
-  private buildHintEl: HTMLElement | null = null;
+  private canBuild = false;
 
   private buildHint(): HTMLElement | null {
-    const status = requirementStatus(services.sim.state);
-    this.buildHintEl = status?.canBuild
+    this.canBuild = !!requirementStatus(services.sim.state)?.canBuild;
+    return this.canBuild
       ? h('button', { class: 'btn teal', onclick: () => this.openBuildPanel() }, sprite('sparkle'), 'Construire')
       : null;
-    return this.buildHintEl;
   }
 
+  /** Affiche ou retire le bouton « Construire » quand les conditions changent. */
   private refreshBuildHint(): void {
-    if (this.mode === 'tower' && !this.modal) this.renderHud();
+    const can = !!requirementStatus(services.sim.state)?.canBuild;
+    if (can !== this.canBuild && this.mode === 'tower') this.renderHud();
   }
 
   private aquariumTitle(): HTMLElement {
@@ -239,7 +255,7 @@ export class UI {
       });
     }
     this.toasts.append(el);
-    while (this.toasts.children.length > 3) this.toasts.firstElementChild?.remove();
+    while (this.toasts.children.length > 2) this.toasts.firstElementChild?.remove();
     setTimeout(() => {
       el.classList.add('out');
       setTimeout(() => el.remove(), 400);
@@ -336,7 +352,7 @@ export class UI {
             },
           },
           pending ? h('span', { class: 'tag' }, '?') : null,
-          h('div', { class: 'thumb' }, sprite(known ? fishKey(s.id) : `${fishKey(s.id)}-sil`, 2)),
+          h('div', { class: 'thumb' }, fit(known ? fishKey(s.id) : `${fishKey(s.id)}-sil`, 46, 18, 2)),
           h('div', null, known ? s.name : pending ? 'À identifier' : '???'),
           h('div', { class: 'stars' }, stars(s.rarity))));
         }
@@ -353,7 +369,7 @@ export class UI {
             this.openStarSheet(star.id);
           },
         },
-        h('div', { class: 'thumb' }, sprite(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 2)),
+        h('div', { class: 'thumb' }, fit(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 46, 18, 2)),
         h('div', null, visits ? star.name : '???'),
         h('div', { class: 'muted' }, visits ? `${visits} visite${visits > 1 ? 's' : ''}` : `Niv. ${star.level}`)));
       }
@@ -379,7 +395,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head('Espèce inconnue', () => this.openJournal('fish')),
       h('div', { class: 'panel-body center' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, sprite(`${fishKey(s.id)}-sil`, 5)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(`${fishKey(s.id)}-sil`, 140, 38)),
         h('p', null, h('b', null, BIOMES[s.biome].name), ' · ', RARITY_NAMES[s.rarity], ' ', h('span', { class: 'stars' }, stars(s.rarity))),
         h('div', { class: 'fact-box' }, h('b', null, 'Indice : '), s.hint)),
     );
@@ -395,7 +411,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head(s.name, onBack),
       h('div', { class: 'panel-body' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, sprite(fishKey(s.id), 5)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 38)),
         h('p', { class: 'center' }, h('em', { class: 'sci' }, s.scientific)),
         h('dl', { class: 'facts' },
           h('dt', null, 'Biome'), h('dd', null, BIOMES[s.biome].name),
@@ -418,7 +434,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head(star.name, () => this.openJournal('stars')),
       h('div', { class: 'panel-body center' },
-        h('div', { class: 'sheet-hero', style: 'background: linear-gradient(#fbeedd, #f3dcc0);' }, sprite(starKey(id), 5)),
+        h('div', { class: 'sheet-hero', style: 'background: linear-gradient(#fbeedd, #f3dcc0);' }, fit(starKey(id), 140, 38)),
         h('div', { class: 'fact-box' }, `« ${star.quote} »`),
         h('p', { class: 'muted' }, `Clin d’œil à : ${star.nod}`),
         h('p', null, `Visites : ${services.sim.state.stars[id] ?? 0}`)),
@@ -433,7 +449,11 @@ export class UI {
     const target = uid ?? sim.state.toIdentify[0];
     const found = target !== undefined ? findFish(sim.state, target) : null;
     if (!found) {
-      if (target !== undefined) sim.identify(target, 'demoiselle');
+      if (target !== undefined) sim.identify(target, 'demoiselle'); // nettoie une entrée orpheline
+      return;
+    }
+    if (!sim.state.toIdentify.includes(found.fish.uid)) {
+      this.openSpeciesSheet(found.fish.species);
       return;
     }
     const s = SPECIES_BY_ID[found.fish.species];
@@ -474,7 +494,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head('Nouveau pensionnaire !'),
       h('div', { class: 'panel-body' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, sprite(fishKey(s.id), 5)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 38)),
         h('p', { class: 'center' }, 'Observe-le bien : de quelle espèce s’agit-il ?'),
         h('div', { class: 'choices' }, ...buttons),
         result),
@@ -515,7 +535,7 @@ export class UI {
         },
       },
       owned ? h('span', { class: 'tag' }, `×${owned}`) : null,
-      h('div', { class: 'thumb' }, sprite(decorKey(it.id), 1.5)),
+      h('div', { class: 'thumb' }, fit(decorKey(it.id), 46, 18, 2)),
       h('div', null, it.name),
       owned ? h('div', { class: 'muted' }, 'En stock') : h('div', { class: 'price' }, sprite('coin'), it.price)));
     }

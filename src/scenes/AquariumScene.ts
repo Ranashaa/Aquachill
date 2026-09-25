@@ -8,7 +8,7 @@ import { TankView } from './TankView';
 const W = 90; // largeur visible en pixels « art » (zoom ×2)
 const H = 160;
 const INK = 0x3a3656;
-const RECT = { x: 4, y: 16, w: 82, h: 120 };
+const RECT = { x: 4, y: 18, w: 82, h: 104 };
 
 export type AquariumMode = 'view' | 'decor';
 
@@ -46,7 +46,13 @@ export class AquariumScene extends Phaser.Scene {
     // cadre et meuble
     g.fillStyle(INK).fillRect(RECT.x - 2, RECT.y - 3, RECT.w + 4, RECT.h + 5);
     g.fillStyle(0x6a6690).fillRect(RECT.x - 3, RECT.y - 4, RECT.w + 6, 2);
-    g.fillStyle(INK).fillRect(RECT.x + 3, RECT.y + RECT.h + 2, RECT.w - 6, 3);
+    // meuble sous l'aquarium
+    const cab = RECT.y + RECT.h + 2;
+    g.fillStyle(INK).fillRect(RECT.x - 1, cab, RECT.w + 2, 17);
+    g.fillStyle(0xc8865a).fillRect(RECT.x, cab + 1, RECT.w, 15);
+    g.fillStyle(0xe0a070).fillRect(RECT.x, cab + 1, RECT.w, 2);
+    g.fillStyle(0xa86a44).fillRect(RECT.x + RECT.w / 2, cab + 4, 1, 11);
+    g.fillStyle(0xffd23a).fillRect(RECT.x + RECT.w / 2 - 3, cab + 9, 1, 2).fillRect(RECT.x + RECT.w / 2 + 3, cab + 9, 1, 2);
 
     this.tank = new TankView(this, this.floorIndex, RECT, 5, true);
 

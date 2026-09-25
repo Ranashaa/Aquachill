@@ -278,7 +278,7 @@ export class TankView {
         if (v <= 0.02) continue;
         const n = hash01(x * 92821 + y * 68917 + this.floorIndex);
         const i = (y * w + x) * 4;
-        if (n < v * 0.8) {
+        if (n < v * 0.6) {
           const dark = hash01(x * 13 + y * 7) < 0.35;
           img.data[i] = dark ? r2 : r1;
           img.data[i + 1] = dark ? g2 : g1;
@@ -288,7 +288,7 @@ export class TankView {
           img.data[i] = r1;
           img.data[i + 1] = g1;
           img.data[i + 2] = b1;
-          img.data[i + 3] = Math.round(v * 60);
+          img.data[i + 3] = Math.round(v * 45);
         }
       }
     }

@@ -92,7 +92,7 @@ export class TowerScene extends Phaser.Scene {
   }
 
   private minScroll(): number {
-    return this.roofTop() - 70 - HUD_TOP;
+    return this.roofTop() - 40 - HUD_TOP;
   }
 
   private maxScroll(): number {

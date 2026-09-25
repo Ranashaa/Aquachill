@@ -22,8 +22,9 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
 }
+
+#game { touch-action: none; }
 
 body {
   font-family: 'Pixelify Sans', ui-monospace, monospace;
@@ -295,7 +296,7 @@ em.sci { font-style: italic; color: var(--ink-soft); }
   height: calc(var(--px) * 18);
   display: flex; align-items: center; justify-content: center;
 }
-.card .thumb img { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+
 .card .price { display: flex; align-items: center; gap: calc(var(--px) * 1); font-weight: 700; }
 .card .price img { width: calc(var(--px) * 5); }
 .card .tag {
@@ -322,7 +323,7 @@ em.sci { font-style: italic; color: var(--ink-soft); }
   border: calc(var(--px) * 1) solid var(--line);
   margin-bottom: calc(var(--px) * 3);
 }
-.sheet-hero img { height: 60%; width: auto; }
+
 .facts { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--px) * 1) calc(var(--px) * 3); font-size: calc(var(--px) * 5.5); }
 .facts dt { color: var(--ink-soft); }
 .facts dd { margin: 0; }
