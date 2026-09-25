@@ -301,7 +301,7 @@ export function drawLobby(p: Painter, night: number): void {
     rect(g, 0xe8dcc6, x, y, 3 + Math.floor(hash01(i) * 5), 1);
   }
   // grande baie en arche avec vue sur la mer
-  const ax = 122;
+  const ax = 118;
   const aw = 76;
   const ay = top + 22;
   const ah = 58;
@@ -327,7 +327,7 @@ export function drawLobby(p: Painter, night: number): void {
     g.fillRect(fx, fy, 6, 2).fillRect(fx - 2, fy - 1, 2, 4).fillRect(fx + 1, fy - 1, 3, 1);
   }
   // colonnes
-  for (const cx of [ROOM_X0 + 4, 112, 196]) {
+  for (const cx of [ROOM_X0 + 4, 106, 197]) {
     rect(g, INK, cx - 1, top + 11, 10, LOBBY_H - 23);
     rect(g, 0xece0cc, cx, top + 11, 8, LOBBY_H - 23);
     rect(g, 0xd8c8ae, cx + 6, top + 11, 2, LOBBY_H - 23);
@@ -366,7 +366,7 @@ export function drawLobby(p: Painter, night: number): void {
   rect(e, INK, 218, -46, 2, 40);
   p.text(219, -56, 'ENTREE', { color: '#2b2238', shadow: null, font: 'small', depth: 3, ox: 0.5 });
   // plantes
-  p.img(116, -4, 'room-fern', 15, 0.5, 1).setDepth(15);
+  p.img(122, -4, 'room-fern', 15, 0.5, 1).setDepth(15);
   // lustres
   p.shade(ROOM_X0, top + 11, ROOM_W, LOBBY_H - 11);
   for (const lx of [72, 160]) {
