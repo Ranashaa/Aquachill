@@ -3,7 +3,7 @@ import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
 import './ui/style.css';
 import { AudioEngine } from './audio/AudioEngine';
-import { GAME_H, GAME_W } from './config';
+import { GAME_H, GAME_W, UI_W } from './config';
 import { AquariumScene } from './scenes/AquariumScene';
 import { BootScene } from './scenes/BootScene';
 import { TowerScene } from './scenes/TowerScene';
@@ -17,7 +17,7 @@ const app = document.getElementById('app')!;
 const uiRoot = document.getElementById('ui')!;
 
 function updatePixelSize(): void {
-  app.style.setProperty('--px', `${app.clientWidth / GAME_W}px`);
+  app.style.setProperty('--px', `${app.clientWidth / UI_W}px`);
 }
 updatePixelSize();
 window.addEventListener('resize', updatePixelSize);

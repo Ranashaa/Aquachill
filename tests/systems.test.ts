@@ -201,3 +201,16 @@ describe('sauvegarde', () => {
     expect(state.journal).toEqual({});
   });
 });
+
+import { daylightAt } from '../src/systems/daylight';
+
+describe('cycle jour/nuit', () => {
+  it('fait nuit à minuit et jour à midi', () => {
+    expect(daylightAt(0).night).toBe(1);
+    expect(daylightAt(12).night).toBe(0);
+    expect(daylightAt(12).sun).not.toBeNull();
+    expect(daylightAt(23.5).moon).not.toBeNull();
+    expect(daylightAt(19.5).night).toBeGreaterThan(0.4);
+    expect(daylightAt(19.5).night).toBeLessThan(0.8);
+  });
+});

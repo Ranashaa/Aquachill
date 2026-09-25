@@ -91,6 +91,14 @@ export const UI_SPRITES: Record<string, SpriteDef> = {
     palette: { k: '#3a3656', r: '#e84a5f' },
     rows: ['...k....', '..kk....', 'kkkk.r.r', 'kkkk..r.', 'kkkk.r.r', '..kk....', '...k....'],
   },
+  star5: {
+    palette: { y: '#ffd23a' },
+    rows: ['..y..', '.yyy.', 'yyyyy', '.yyy.', '.y.y.'],
+  },
+  star5off: {
+    palette: { y: '#6a6490' },
+    rows: ['..y..', '.yyy.', 'yyyyy', '.yyy.', '.y.y.'],
+  },
   crane: {
     palette: { y: '#ffc23a', k: '#3a3656', g: '#8a8a94' },
     rows: [

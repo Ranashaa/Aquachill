@@ -245,7 +245,7 @@ export class UI {
     opts: { icon?: string; img?: string; onClick?: () => void; duration?: number } = {},
   ): void {
     const key = opts.img ?? opts.icon;
-    const el = h('div', { class: 'toast' }, key ? sprite(key) : null, msg);
+    const el = h('div', { class: 'toast' }, key ? fit(key, 12, 12, 1) : null, msg);
     if (opts.onClick) {
       el.style.pointerEvents = 'auto';
       el.style.cursor = 'pointer';
@@ -352,7 +352,7 @@ export class UI {
             },
           },
           pending ? h('span', { class: 'tag' }, '?') : null,
-          h('div', { class: 'thumb' }, fit(known ? fishKey(s.id) : `${fishKey(s.id)}-sil`, 46, 18, 2)),
+          h('div', { class: 'thumb' }, fit(known ? fishKey(s.id) : `${fishKey(s.id)}-sil`, 46, 24, 2)),
           h('div', null, known ? s.name : pending ? 'À identifier' : '???'),
           h('div', { class: 'stars' }, stars(s.rarity))));
         }
@@ -369,7 +369,7 @@ export class UI {
             this.openStarSheet(star.id);
           },
         },
-        h('div', { class: 'thumb' }, fit(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 46, 18, 2)),
+        h('div', { class: 'thumb' }, fit(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 46, 24, 2)),
         h('div', null, visits ? star.name : '???'),
         h('div', { class: 'muted' }, visits ? `${visits} visite${visits > 1 ? 's' : ''}` : `Niv. ${star.level}`)));
       }
@@ -395,7 +395,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head('Espèce inconnue', () => this.openJournal('fish')),
       h('div', { class: 'panel-body center' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(`${fishKey(s.id)}-sil`, 140, 38)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(`${fishKey(s.id)}-sil`, 140, 46)),
         h('p', null, h('b', null, BIOMES[s.biome].name), ' · ', RARITY_NAMES[s.rarity], ' ', h('span', { class: 'stars' }, stars(s.rarity))),
         h('div', { class: 'fact-box' }, h('b', null, 'Indice : '), s.hint)),
     );
@@ -411,7 +411,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head(s.name, onBack),
       h('div', { class: 'panel-body' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 38)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 46)),
         h('p', { class: 'center' }, h('em', { class: 'sci' }, s.scientific)),
         h('dl', { class: 'facts' },
           h('dt', null, 'Biome'), h('dd', null, BIOMES[s.biome].name),
@@ -434,7 +434,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head(star.name, () => this.openJournal('stars')),
       h('div', { class: 'panel-body center' },
-        h('div', { class: 'sheet-hero', style: 'background: linear-gradient(#fbeedd, #f3dcc0);' }, fit(starKey(id), 140, 38)),
+        h('div', { class: 'sheet-hero', style: 'background: linear-gradient(#fbeedd, #f3dcc0);' }, fit(starKey(id), 140, 46)),
         h('div', { class: 'fact-box' }, `« ${star.quote} »`),
         h('p', { class: 'muted' }, `Clin d’œil à : ${star.nod}`),
         h('p', null, `Visites : ${services.sim.state.stars[id] ?? 0}`)),
@@ -494,7 +494,7 @@ export class UI {
     const panel = h('div', { class: 'panel' },
       this.head('Nouveau pensionnaire !'),
       h('div', { class: 'panel-body' },
-        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 38)),
+        h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(fishKey(s.id), 140, 46)),
         h('p', { class: 'center' }, 'Observe-le bien : de quelle espèce s’agit-il ?'),
         h('div', { class: 'choices' }, ...buttons),
         result),
@@ -535,7 +535,7 @@ export class UI {
         },
       },
       owned ? h('span', { class: 'tag' }, `×${owned}`) : null,
-      h('div', { class: 'thumb' }, fit(decorKey(it.id), 46, 18, 2)),
+      h('div', { class: 'thumb' }, fit(decorKey(it.id), 46, 24, 2)),
       h('div', null, it.name),
       owned ? h('div', { class: 'muted' }, 'En stock') : h('div', { class: 'price' }, sprite('coin'), it.price)));
     }
