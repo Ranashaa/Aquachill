@@ -3,6 +3,7 @@ import { FLOOR_H, GAME_H, GAME_W, HUD_BOTTOM, HUD_TOP, LOBBY_H, SHAFT_W, SHAFT_X
 import { BIOMES } from '../data/biomes';
 import { services } from '../services';
 import { starKey, textTexture, visitorKey } from '../sprites';
+import { measureText } from '../sprites/font';
 import { requirementStatus } from '../systems/progression';
 import { visitX, type CoinDrop, type Visitor } from '../systems/visitors';
 import { capsuleTexture, cloudTexture, hexNum, skyTexture } from './art';
@@ -227,7 +228,7 @@ export class TowerScene extends Phaser.Scene {
     g.fillStyle(INK).fillRect(rect.x + 2, rect.y + rect.h + 2, rect.w - 4, 2);
     // plaque
     const sign = BIOMES[biome].sign;
-    const sw = sign.length * 4 + 5;
+    const sw = measureText(sign) + 6;
     g.fillStyle(INK).fillRect(73 - Math.ceil(sw / 2) - 1, top + 2, sw + 2, 6);
     g.fillStyle(hexNum(p.accent)).fillRect(73 - Math.ceil(sw / 2), top + 2, sw, 5);
     this.text(73, top + 5, sign, '#ffffff', null, 3);
