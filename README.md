@@ -28,7 +28,11 @@ Paramètres d’URL utiles pour le développement :
   et abysses sont annoncés « bientôt ».
 - **Visiteurs** : ils prennent l’ascenseur, admirent les aquariums et laissent des pièces.
   Parfois, une **star** passe (Fray, Bob l’Épongeux, Capitaine Hadoque…) : touche-la pour
-  un autographe, elle rejoint le **Livre d’or**.
+  un autographe. Chaque star rejoint l’**album des stars**, avec des indices pour celles
+  qui ne sont pas encore venues.
+- **Une tour vivante** : bulles de pensée et photos des visiteurs, repas des poissons
+  (bouton « Nourrir »), plantes qui ondulent, reflets de lumière dans l’eau, passants,
+  voitures et oiseaux, cycle jour/nuit calé sur l’heure réelle (`?hour=22` pour tester).
 - **18 vraies espèces** (6 par biome), fidèles en forme, en couleurs et en motifs, chacune
   avec une fiche : nom commun, nom scientifique, origine, taille et anecdote, plus un lien
   Wikipédia.

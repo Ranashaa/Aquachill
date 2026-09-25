@@ -162,3 +162,27 @@ export function cloudTexture(textures: Phaser.Textures.TextureManager): string {
   });
   return key;
 }
+
+/** Reflets de lumière dansants (4 images en boucle, mode additif). */
+export function causticTexture(textures: Phaser.Textures.TextureManager, w: number, h: number, k: number): string {
+  const key = `caustic-${w}x${h}-${k}`;
+  makeCanvasTexture(textures, key, w, h, (ctx) => {
+    const ph = (k * Math.PI) / 2;
+    const water = h - sandHeight(h);
+    for (let y = 0; y < h; y++) {
+      const depth = y < water ? 1 - y / water : 0.35;
+      for (let x = 0; x < w; x++) {
+        const v =
+          Math.sin(x * 0.33 + y * 0.12 + ph) +
+          Math.sin(x * 0.13 - y * 0.29 + ph * 1.3 + 1) +
+          Math.sin((x + y) * 0.21 - ph * 0.7 + 2);
+        if (Math.abs(v) > 0.22) continue;
+        const a = Math.round(depth * 3) / 3;
+        if (a <= 0) continue;
+        ctx.fillStyle = `rgba(200,245,255,${0.35 * a + 0.1})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  });
+  return key;
+}

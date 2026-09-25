@@ -11,13 +11,21 @@ import type { FishInstance, FloorState } from '../state/GameState';
 import { happiness } from '../systems/happiness';
 import { hash01 } from '../systems/rng';
 import { TANK_SLOTS } from '../config';
-import { hexToRgb, sandHeight, tankBackground } from './art';
+import { causticTexture, hexToRgb, sandHeight, tankBackground } from './art';
 
 export interface Rect {
   x: number;
   y: number;
   w: number;
   h: number;
+}
+
+interface Flake {
+  obj: Phaser.GameObjects.Rectangle;
+  x: number;
+  y: number;
+  vy: number;
+  life: number;
 }
 
 class Swimmer {
@@ -51,7 +59,14 @@ class Swimmer {
 
   update(dt: number, speedFactor: number): void {
     const s = this.sprite;
-    const speed = this.species.speed * this.view.baseSpeed * speedFactor;
+    // l'heure du repas : on file vers la paillette la plus proche
+    const food = this.view.nearestFlake(s.x, s.y);
+    if (food) {
+      this.idle = 0;
+      [this.tx, this.ty] = this.view.clampToZone(this.species, food.x, food.y);
+      if (Math.hypot(food.x - s.x, food.y - s.y) < 3) this.view.eatFlake(food);
+    }
+    const speed = this.species.speed * this.view.baseSpeed * speedFactor * (food ? 2.4 : 1);
     this.animT += dt * (0.8 + this.species.speed);
     if (this.animT > 0.3) {
       this.animT = 0;
@@ -67,6 +82,7 @@ class Swimmer {
     const dy = this.ty - s.y;
     const dist = Math.hypot(dx, dy);
     if (dist < 1) {
+      if (food) return;
       const lazy = this.species.zone === 'bottom' || this.species.zone === 'hover' ? 0.7 : 0.35;
       if (Math.random() < lazy) this.idle = 0.6 + Math.random() * 2.2;
       this.pickTarget();
@@ -90,7 +106,16 @@ class Swimmer {
 
 export class TankView {
   readonly bg: Phaser.GameObjects.Image;
-  private decor: Phaser.GameObjects.Image[] = [];
+  private decor: Phaser.GameObjects.Sprite[] = [];
+  private swayT = 0;
+  private flakes: Flake[] = [];
+  private feedQueue = 0;
+  private feedT = 0;
+  private autoFeedT = 30 + Math.random() * 60;
+  private caustics?: Phaser.GameObjects.Image;
+  private causticKeys: string[] = [];
+  private causticT = 0;
+  private causticFrame = 0;
   private swimmers: Swimmer[] = [];
   private algaeTex: Phaser.Textures.CanvasTexture;
   private algaeImg: Phaser.GameObjects.Image;
@@ -112,7 +137,7 @@ export class TankView {
   ) {
     const floor = this.floor;
     this.sand = sandHeight(rect.h);
-    this.baseSpeed = detailed ? 9 : 7;
+    this.baseSpeed = detailed ? 5 : 3.5;
     this.bg = scene.add
       .image(rect.x, rect.y, tankBackground(scene.textures, floor.biome, rect.w, rect.h))
       .setOrigin(0)
@@ -120,6 +145,13 @@ export class TankView {
     const key = `algae-${TankView.counter++}`;
     this.algaeTex = scene.textures.createCanvas(key, rect.w, rect.h)!;
     this.algaeImg = scene.add.image(rect.x, rect.y, key).setOrigin(0).setDepth(depth + 6);
+    this.causticKeys = [0, 1, 2, 3].map((k) => causticTexture(scene.textures, rect.w, rect.h, k));
+    this.caustics = scene.add
+      .image(rect.x, rect.y, this.causticKeys[0])
+      .setOrigin(0)
+      .setDepth(depth + 2)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(detailed ? 0.5 : 0.4);
     this.refresh();
   }
 
@@ -202,7 +234,7 @@ export class TankView {
     floor.slots.forEach((id, i) => {
       if (!id) return;
       const item = DECOR[id];
-      const img = this.scene.add.image(this.slotX(i), 0, decorKey(id)).setDepth(this.depth + 1);
+      const img = this.scene.add.sprite(this.slotX(i), 0, decorKey(id), 0).setDepth(this.depth + 1);
       if (item.anchor === 'surface') {
         img.setOrigin(0.5, 0).setY(this.rect.y + (id === 'lily' ? -2 : 0));
         img.setDepth(this.depth + 5);
@@ -336,8 +368,82 @@ export class TankView {
     this.fx = this.fx.filter((o) => o !== obj);
   }
 
+  // ------------------------------------------------------------------ repas
+
+  /** Le soigneur verse quelques paillettes : les poissons accourent. */
+  feed(): void {
+    this.feedQueue += 8 + Math.floor(Math.random() * 6);
+  }
+
+  nearestFlake(x: number, y: number): Flake | null {
+    let best: Flake | null = null;
+    let bestD = Infinity;
+    for (const f of this.flakes) {
+      const d = Math.hypot(f.x - x, f.y - y);
+      if (d < bestD) {
+        best = f;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  eatFlake(f: Flake): void {
+    f.obj.destroy();
+    this.flakes = this.flakes.filter((o) => o !== f);
+    if (Math.random() < 0.25) this.spawnHeart();
+  }
+
+  private updateFlakes(dt: number): void {
+    const r = this.rect;
+    if (this.feedQueue > 0) {
+      this.feedT -= dt;
+      if (this.feedT <= 0) {
+        this.feedT = 0.12;
+        this.feedQueue--;
+        const x = r.x + r.w * (0.25 + Math.random() * 0.5);
+        const colors = [0xe8a060, 0xc8783a, 0xf0d080];
+        const obj = this.scene.add
+          .rectangle(x, r.y + 1, 1, 1, colors[Math.floor(Math.random() * 3)])
+          .setOrigin(0)
+          .setDepth(this.depth + 4);
+        this.flakes.push({ obj, x, y: r.y + 1, vy: 3 + Math.random() * 3, life: 16 });
+      }
+    }
+    const floorY = r.y + r.h - this.sand - 1;
+    for (const f of this.flakes) {
+      f.life -= dt;
+      if (f.y < floorY) {
+        f.y = Math.min(floorY, f.y + f.vy * dt);
+        f.x += Math.sin(f.life * 3 + f.vy) * dt * 2;
+      }
+      f.obj.setPosition(Math.round(f.x), Math.round(f.y)).setAlpha(Math.min(1, f.life));
+    }
+    for (const f of this.flakes.filter((o) => o.life <= 0)) this.eatFlake(f);
+  }
+
   update(dt: number, visible = true): void {
     if (!visible) return;
+    this.updateFlakes(dt);
+    this.autoFeedT -= dt;
+    if (this.autoFeedT <= 0) {
+      this.autoFeedT = 70 + Math.random() * 80;
+      if (this.floor.fish.length > 0) this.feed();
+    }
+    this.swayT += dt;
+    if (this.swayT > 0.9) {
+      this.swayT = 0;
+      this.decor.forEach((d, i) => {
+        if (d.texture.frameTotal > 2 && Math.random() < 0.7) d.setFrame(Number(d.frame.name) === 0 ? 1 : 0, false, false);
+        void i;
+      });
+    }
+    this.causticT += dt;
+    if (this.causticT > 0.22) {
+      this.causticT = 0;
+      this.causticFrame = (this.causticFrame + 1) % this.causticKeys.length;
+      this.caustics?.setTexture(this.causticKeys[this.causticFrame]);
+    }
     const joy = happiness(this.floor);
     const speedFactor = 0.6 + 0.6 * joy;
     for (const sw of this.swimmers) sw.update(dt, speedFactor);
@@ -368,6 +474,9 @@ export class TankView {
     this.fx.forEach((o) => o.destroy());
     this.fx = [];
     this.algaeImg.destroy();
+    this.caustics?.destroy();
+    this.flakes.forEach((f) => f.obj.destroy());
+    this.flakes = [];
     this.scene.textures.remove(this.algaeTex);
   }
 }

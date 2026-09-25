@@ -30,14 +30,15 @@ export interface CoinDrop {
 }
 
 export const VISITOR_LOOKS = 24;
-export const WALK_DURATION = 3.2;
+/** Traversée du hall à pas tranquilles (~22 px/s). */
+export const WALK_DURATION = 9;
 
 export function rideDuration(floor: number): number {
-  return 1 + 0.45 * (floor + 1);
+  return 1.5 + 2.2 * (floor + 1);
 }
 
 export function visitDuration(seed: number): number {
-  return 9 + hash01(seed * 7 + 3) * 6;
+  return 22 + hash01(seed * 7 + 3) * 16;
 }
 
 /** Deux points d'arrêt devant la vitre, en fraction du couloir (0 = gauche, 1 = ascenseur). */

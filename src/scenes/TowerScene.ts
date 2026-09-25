@@ -6,10 +6,10 @@ import { starKey, textTexture, visitorKey } from '../sprites';
 import { discoveredCount } from '../state/GameState';
 import { happiness } from '../systems/happiness';
 import { levelForXp, requirementStatus } from '../systems/progression';
-import { visitX, type CoinDrop, type Visitor } from '../systems/visitors';
+import { visitX, VISITOR_LOOKS, type CoinDrop, type Visitor } from '../systems/visitors';
 import { capsuleTexture } from './art';
 import {
-  drawBanner, drawBuildSlot, drawLobby, drawRoof, drawRoom, drawShaft, drawStreet, floorTop, Painter,
+  BANNER_COLORS, drawBanner, drawBuildSlot, drawLobby, drawRoof, drawRoom, drawShaft, drawStreet, floorTop, Painter, tankRect,
 } from './building';
 import { Environment } from './Environment';
 import { TankView } from './TankView';
@@ -25,6 +25,8 @@ interface VisitorSprites {
   capsule: Phaser.GameObjects.Image;
   star?: Phaser.GameObjects.Image;
   lastX: number;
+  thought?: Phaser.GameObjects.Container;
+  nextThought: number;
 }
 
 const floorFeet = (i: number) => floorTop(i) + FLOOR_H - 2;
@@ -134,7 +136,7 @@ export class TowerScene extends Phaser.Scene {
     sim.state.floors.forEach((floor, i) => {
       const t = floorTop(i);
       drawShaft(p, t, FLOOR_H, String(i + 1));
-      drawBanner(p, t, BIOMES[floor.biome].sign);
+      drawBanner(p, t, BIOMES[floor.biome].sign, BANNER_COLORS[floor.biome] ?? BANNER_COLORS.build);
       const rect = drawRoom(p, t, floor.biome, this.night);
       this.tanks[i] = new TankView(this, i, rect, 5);
       this.drawBannerInfo(i);
@@ -146,11 +148,11 @@ export class TowerScene extends Phaser.Scene {
       const t = floorTop(sim.state.floors.length);
       const req = status.entry.req;
       const reqText = status.canBuild
-        ? `${req.coins} PIECES`
+        ? 'TOUCHE LE PANNEAU'
         : [
-            !status.levelOk ? `NIV ${req.level}` : null,
+            !status.levelOk ? `NIVEAU ${req.level}` : null,
             !status.speciesOk ? `${req.species} ESPECES` : null,
-            `${req.coins} P.`,
+            !status.coinsOk ? `${req.coins} P.` : null,
           ].filter(Boolean).join(' · ');
       drawBuildSlot(p, t, {
         comingSoon: !!status.entry.comingSoon,
@@ -161,7 +163,8 @@ export class TowerScene extends Phaser.Scene {
       }, this.night);
       this.buildTop = t;
     }
-    drawRoof(p, this.roofTop(), !!status && !status.entry.comingSoon, this.night);
+    const buildable = status && !status.entry.comingSoon ? status : null;
+    drawRoof(p, this.roofTop(), { price: buildable ? buildable.entry.req.coins : null, canBuild: !!buildable?.canBuild }, this.night);
     this.applyNight();
   }
 
@@ -246,7 +249,8 @@ export class TowerScene extends Phaser.Scene {
         return;
       }
     }
-    if (this.buildTop !== null && y >= this.buildTop && y < this.buildTop + FLOOR_H) {
+    const onRoofSign = y >= this.roofTop() - 24 && y < this.roofTop() + 40 && x > 80 && x < 192;
+    if (this.buildTop !== null && ((y >= this.buildTop && y < this.buildTop + FLOOR_H) || onRoofSign)) {
       services.audio.play('click');
       services.ui.openBuildPanel();
       return;
@@ -304,7 +308,7 @@ export class TowerScene extends Phaser.Scene {
         const key = v.star ? starKey(v.star) : visitorKey(v.look);
         const body = this.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setDepth(20);
         const capsule = this.add.image(0, 0, 'capsule').setOrigin(0.5, 1).setDepth(21).setVisible(false);
-        vs = { body, capsule, lastX: 0 };
+        vs = { body, capsule, lastX: 0, nextThought: time + 3000 + Math.random() * 5000 };
         if (v.star) {
           vs.star = this.add.image(0, 0, 'star').setDepth(22);
           this.tweens.add({ targets: vs.star, scale: 1.3, yoyo: true, repeat: -1, duration: 400 });
@@ -325,6 +329,12 @@ export class TowerScene extends Phaser.Scene {
       vs.lastX = x;
       vs.capsule.setVisible(pos.inCapsule).setPosition(SHAFT_CX, y + 3);
       vs.star?.setPosition(x, y - vs.body.height - 5).setAlpha(pos.alpha).setVisible(!v.starTapped);
+      // bulles de pensée et photos pendant qu'ils admirent
+      if (pos.back && time > vs.nextThought) {
+        vs.nextThought = time + 5000 + Math.random() * 7000;
+        this.think(vs, v.floor);
+      }
+      vs.thought?.setPosition(x, y - vs.body.height - (vs.star ? 12 : 3));
     }
     for (const [id, vs] of this.visitors) {
       if (seen.has(id)) continue;
@@ -334,8 +344,80 @@ export class TowerScene extends Phaser.Scene {
         this.tweens.killTweensOf(vs.star);
         vs.star.destroy();
       }
+      vs.thought?.destroy();
       this.visitors.delete(id);
     }
+  }
+
+  private think(vs: VisitorSprites, floor: number): void {
+    vs.thought?.destroy();
+    const photo = Math.random() < 0.18;
+    const icons = ['ico-heart', 'ico-heart', 'ico-fish', 'ico-wow', 'ico-note', 'ico-star'];
+    const icon = photo ? 'ico-camera' : icons[Math.floor(Math.random() * icons.length)];
+    const c = this.add.container(vs.body.x, vs.body.y, [
+      this.add.image(0, 0, 'thought').setOrigin(0.5, 1),
+      this.add.image(0, -7, icon).setOrigin(0.5, 0.5),
+    ]).setDepth(23).setScale(0);
+    vs.thought = c;
+    this.tweens.add({ targets: c, scale: 1, duration: 180, ease: 'Back.easeOut' });
+    this.time.delayedCall(2200, () => {
+      if (!c.active) return;
+      this.tweens.add({ targets: c, alpha: 0, duration: 250, onComplete: () => c.destroy() });
+    });
+    if (photo) {
+      this.time.delayedCall(500, () => {
+        const r = tankRect(floorTop(floor));
+        const flash = this.add.rectangle(r.x, r.y, r.w, r.h, 0xffffff, 0.7).setOrigin(0).setDepth(13);
+        this.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() });
+      });
+    }
+  }
+
+  // ----------------------------------------------------------------------- rue
+
+  private street: { obj: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image; vx: number; kind: 'walker' | 'car' | 'bird' }[] = [];
+  private streetT = 2;
+  private birdT = 5;
+
+  private updateStreet(dt: number, time: number): void {
+    this.streetT -= dt;
+    if (this.streetT <= 0) {
+      this.streetT = 3 + Math.random() * 6;
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      if (Math.random() < 0.35) {
+        const tints = [0xffffff, 0x9fd0ff, 0xb8f0a0, 0xfff09a, 0xe0b8ff];
+        const car = this.add.image(dir > 0 ? -20 : GAME_W + 20, 31, 'car').setOrigin(0.5, 1).setDepth(18)
+          .setFlipX(dir < 0).setTint(tints[Math.floor(Math.random() * tints.length)]);
+        this.street.push({ obj: car, vx: dir * (35 + Math.random() * 20), kind: 'car' });
+      } else {
+        const look = Math.floor(Math.random() * VISITOR_LOOKS);
+        const w = this.add.sprite(dir > 0 ? -10 : GAME_W + 10, 8, visitorKey(look), 1).setOrigin(0.5, 1).setDepth(18);
+        w.setFlipX(dir < 0);
+        this.street.push({ obj: w, vx: dir * (14 + Math.random() * 8), kind: 'walker' });
+      }
+    }
+    this.birdT -= dt;
+    if (this.birdT <= 0) {
+      this.birdT = 8 + Math.random() * 12;
+      if (this.night < 0.5) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        const b = this.add.image(dir > 0 ? -6 : GAME_W + 6, this.roofTop() - 20 - Math.random() * 70, 'bird').setDepth(-80);
+        this.street.push({ obj: b, vx: dir * (22 + Math.random() * 10), kind: 'bird' });
+      }
+    }
+    for (const it of this.street) {
+      it.obj.x += it.vx * dt;
+      if (it.kind === 'walker') (it.obj as Phaser.GameObjects.Sprite).setFrame(1 + (Math.floor(time / 170) % 2));
+      if (it.kind === 'bird') {
+        it.obj.setTexture(Math.floor(time / 220) % 2 ? 'bird' : 'bird2');
+        it.obj.y += Math.sin(time / 300) * 0.05;
+      }
+    }
+    this.street = this.street.filter((it) => {
+      if (it.obj.x > -30 && it.obj.x < GAME_W + 30) return true;
+      it.obj.destroy();
+      return false;
+    });
   }
 
   private syncDrops(): void {
@@ -401,6 +483,7 @@ export class TowerScene extends Phaser.Scene {
       services.sim.state.floors.forEach((_, i) => this.drawBannerInfo(i));
     }
     this.shaftBubbles(dt);
+    this.updateStreet(dt, time);
     this.syncVisitors(time);
     this.syncDrops();
   }

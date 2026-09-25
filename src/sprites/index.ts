@@ -9,8 +9,22 @@ import { ROOM_SPRITES } from './defs/room';
 import { UI_SPRITES } from './defs/ui';
 import { drawText, fontHeight, measureText, type FontId } from './font';
 import {
-  defToCanvas, fishSecondFrame, registerDef, registerFrames, registerSilhouette,
+  defToCanvas, fishSecondFrame, registerDef, registerFrames, registerSilhouette, type SpriteDef,
 } from './SpriteFactory';
+
+/** Décors végétaux qui ondulent doucement dans le courant. */
+export const SWAYING = new Set<DecorId>(['anemone', 'seagrass', 'gorgonian', 'vallisneria', 'sword_plant', 'iris', 'floating']);
+
+/** 2e image d'ondulation : le haut de la plante se décale d'un pixel. */
+function swayFrame(def: SpriteDef): SpriteDef {
+  const h = def.rows.length;
+  const rows = def.rows.map((row, y) => {
+    if (y > h * 0.55) return row;
+    const shift = y < h * 0.3 ? 1 : 0;
+    return shift ? '.' + row.slice(0, -1) : row;
+  });
+  return { palette: def.palette, rows };
+}
 
 export const fishKey = (id: SpeciesId) => `fish-${id}`;
 export const decorKey = (id: DecorId) => `decor-${id}`;
@@ -24,7 +38,10 @@ export function generateTextures(textures: Phaser.Textures.TextureManager): void
     registerDef(textures, key, def, fishSecondFrame(def));
     registerSilhouette(key, def, '#3a3656');
   }
-  for (const [id, def] of Object.entries(DECOR_SPRITES)) registerDef(textures, decorKey(id as DecorId), def);
+  for (const [id, def] of Object.entries(DECOR_SPRITES)) {
+    const frames = SWAYING.has(id as DecorId) ? [def, swayFrame(def)] : [def];
+    registerDef(textures, decorKey(id as DecorId), ...frames);
+  }
   visitorLooks().forEach((spec, i) => registerDef(textures, visitorKey(i), ...personFrames(spec)));
   for (const [id, spec] of Object.entries(STAR_SPECS)) {
     const frames = personFrames(spec);
@@ -32,7 +49,10 @@ export function generateTextures(textures: Phaser.Textures.TextureManager): void
     registerSilhouette(starKey(id as StarId), frames[0], '#3a3656');
   }
   for (const [key, def] of Object.entries(UI_SPRITES)) registerDef(textures, key, def);
-  for (const [key, def] of Object.entries(ROOM_SPRITES)) registerDef(textures, `room-${key}`, def);
+  for (const [key, def] of Object.entries(ROOM_SPRITES)) {
+    const frames = key === 'toucan' ? [def, { palette: def.palette, rows: def.rows.map((r) => r.replace('w', 'K')) }] : [def];
+    registerDef(textures, `room-${key}`, ...frames);
+  }
   // ouvriers du chantier : casque jaune et gilet orange
   WORKERS.forEach((spec, i) => registerDef(textures, `worker-${i}`, ...personFrames(spec)));
 }

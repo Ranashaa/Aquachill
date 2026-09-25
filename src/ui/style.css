@@ -113,11 +113,14 @@ img.px { image-rendering: pixelated; }
   align-items: center;
   gap: calc(var(--px) * 2);
   padding: 0 calc(var(--px) * 3);
-  background: linear-gradient(rgba(253, 246, 232, 0.95), rgba(253, 246, 232, 0.85));
-  border-bottom: calc(var(--px) * 1) solid var(--line);
+  background: linear-gradient(#4e4674, #3a3458);
+  border-bottom: calc(var(--px) * 1) solid #1e1a30;
+  box-shadow: inset 0 calc(var(--px) * -1) 0 #5e5688;
+  color: #fff;
 }
 
 .pill {
+  color: var(--ink);
   display: flex;
   align-items: center;
   gap: calc(var(--px) * 1.5);
@@ -144,7 +147,7 @@ img.px { image-rendering: pixelated; }
   border-radius: calc(var(--px) * 2);
   overflow: hidden;
 }
-.xpbar > div { height: 100%; background: var(--accent-2); transition: width 0.3s; }
+.xpbar > div { height: 100%; background: #6ad85a; transition: width 0.3s; }
 
 .spacer { flex: 1; }
 
@@ -155,12 +158,13 @@ img.px { image-rendering: pixelated; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--px) * 3);
-  padding: calc(var(--px) * 3);
-  background: linear-gradient(rgba(253, 246, 232, 0.85), rgba(253, 246, 232, 0.95));
-  border-top: calc(var(--px) * 1) solid var(--line);
+  gap: calc(var(--px) * 2);
+  padding: calc(var(--px) * 3) calc(var(--px) * 2);
+  background: linear-gradient(#4e4674, #3a3458);
+  border-top: calc(var(--px) * 1) solid #1e1a30;
+  box-shadow: inset 0 calc(var(--px) * 1) 0 #6e66a0;
 }
-.hud-bottom .btn { position: relative; }
+.hud-bottom .btn { position: relative; padding: calc(var(--px) * 1.5) calc(var(--px) * 2); font-size: calc(var(--px) * 5.5); gap: calc(var(--px) * 1.5); }
 
 .aqua-title {
   font-weight: 700;
@@ -168,7 +172,7 @@ img.px { image-rendering: pixelated; }
   display: flex; flex-direction: column;
   line-height: 1.1;
 }
-.aqua-title small { font-weight: 400; font-size: calc(var(--px) * 4.5); color: var(--ink-soft); }
+.aqua-title small { font-weight: 400; font-size: calc(var(--px) * 4.5); color: #c8c0f0; }
 
 /* ------------------------------------------------------------ toasts */
 
@@ -366,3 +370,15 @@ a { color: #2a7fb8; }
 }
 .gallery figure { margin: 0; background: #fff; padding: 6px; border-radius: 6px; text-align: center; font-size: 11px; }
 .gallery img { image-rendering: pixelated; display: block; margin: 0 auto 4px; }
+
+/* ------------------------------------------------------------ album */
+
+.grid.two { grid-template-columns: repeat(2, 1fr); }
+.star-card { min-height: calc(var(--px) * 70); justify-content: flex-start; gap: calc(var(--px) * 1.5); }
+.star-card .portrait {
+  height: calc(var(--px) * 46);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.star-card b { font-size: calc(var(--px) * 5.5); }
+.star-card .lock { font-size: calc(var(--px) * 4.5); color: #b07a2a; }
+.card .tag.new { background: var(--accent); }

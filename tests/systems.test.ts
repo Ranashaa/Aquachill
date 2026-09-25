@@ -107,8 +107,8 @@ describe('économie et bonheur', () => {
 describe('progression', () => {
   it('niveaux', () => {
     expect(levelForXp(0)).toBe(1);
-    expect(levelForXp(20)).toBe(2);
-    expect(levelProgress(40).ratio).toBeCloseTo(0.5);
+    expect(levelForXp(40)).toBe(2);
+    expect(levelProgress(80).ratio).toBeCloseTo(0.5);
   });
 
   it('débloque l’étage suivant selon niveau, espèces et pièces', () => {

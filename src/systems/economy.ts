@@ -18,7 +18,7 @@ export function floorAppeal(floor: FloorState): number {
 
 /** Intervalle moyen entre deux visiteurs (s), plus court quand la tour grandit. */
 export function spawnInterval(floors: number, level: number): number {
-  return Math.max(2.5, 8 - floors * 1.2 - level * 0.25);
+  return Math.max(5, 14 - floors * 1.6 - level * 0.3);
 }
 
 export function maxVisitors(floors: number): number {
