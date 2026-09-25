@@ -59,7 +59,7 @@ export function createFloor(biome: BiomeId): FloorState {
     slots: Array.from({ length: TANK_SLOTS }, () => null),
     fish: [],
     algae: Array.from({ length: ALGAE_COLS * ALGAE_ROWS }, () => 0),
-    attractIn: 8,
+    attractIn: 12,
   };
 }
 

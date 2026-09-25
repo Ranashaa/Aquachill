@@ -23,7 +23,7 @@ export function eligibleSpecies(floor: FloorState): Species[] {
 
 /** Délai aléatoire entre deux tentatives d'attraction (s). */
 export function nextAttractDelay(rng: Rng): number {
-  return 20 + rng() * 25;
+  return 60 + rng() * 70;
 }
 
 /**
@@ -43,7 +43,7 @@ export function attractionTick(
   const candidates = eligibleSpecies(floor);
   if (candidates.length === 0) return null;
   // Un aquarium sale attire moins, mais attire toujours un peu.
-  const chance = 0.65 * (0.4 + 0.6 * happiness(floor));
+  const chance = 0.6 * (0.4 + 0.6 * happiness(floor));
   if (rng() > chance) return null;
   return pickWeighted(
     candidates,

@@ -76,6 +76,17 @@ export class AquariumScene extends Phaser.Scene {
     this.drawMarkers();
   }
 
+  private lastFeed = -Infinity;
+
+  /** Nourrir les poissons (petite pause entre deux repas). */
+  feed(): boolean {
+    if (this.time.now - this.lastFeed < 6000) return false;
+    this.lastFeed = this.time.now;
+    services.audio.play('bubble');
+    this.tank.feed();
+    return true;
+  }
+
   back(): void {
     services.audio.play('bubble');
     this.scene.stop();

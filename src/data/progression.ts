@@ -27,7 +27,7 @@ export const FLOOR_PLAN: FloorPlanEntry[] = [
 ];
 
 /** XP cumulée nécessaire pour atteindre chaque niveau (index 0 = niveau 1). */
-export const LEVEL_XP = [0, 20, 60, 130, 240, 400, 620, 900, 1250, 1700, 2300, 3000];
+export const LEVEL_XP = [0, 40, 120, 260, 480, 800, 1250, 1800, 2500, 3400, 4500, 6000];
 
 export const XP = {
   visit: 1,

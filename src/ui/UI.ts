@@ -90,7 +90,16 @@ export class UI {
       if (this.mode !== 'tower') return;
       services.audio.play('star');
       const star = STARS_BY_ID[v.star!];
-      this.toast(`${star.name} visite la tour ! Touche-le pour un autographe.`, { img: starKey(star.id), duration: 5000 });
+      if (services.sim.state.stars[star.id] === 1) {
+        this.newStars.add(star.id);
+        services.audio.play('levelUp');
+        this.toast(`Nouvelle star pour l’album : ${star.name} !`, {
+          img: starKey(star.id), duration: 7000, onClick: () => this.openStarAlbum(),
+        });
+        this.renderHud();
+      } else {
+        this.toast(`${star.name} visite la tour ! Touche-le pour un autographe.`, { img: starKey(star.id), duration: 5000 });
+      }
     });
     sim.events.on('starTapped', ({ visitor, bonus }) => {
       services.audio.play('coin');
@@ -159,6 +168,8 @@ export class UI {
       const pending = sim.state.toIdentify.length;
       const buttons = [
         h('button', { class: 'btn', onclick: () => this.openJournal() }, sprite('book'), 'Carnet'),
+        h('button', { class: 'btn', onclick: () => this.openStarAlbum() }, sprite('star'), 'Stars',
+          this.newStars.size ? h('span', { class: 'badge' }, this.newStars.size) : null),
         pending
           ? h('button', { class: 'btn primary', onclick: () => this.openIdentify() },
               sprite('question'), 'Identifier', h('span', { class: 'badge' }, pending))
@@ -227,6 +238,14 @@ export class UI {
           this.renderAquariumBottom();
         },
       }, sprite('thermo'), tempLabel(floor.biome, floor.temp)),
+      h('button', {
+        class: 'btn',
+        title: 'Nourrir',
+        onclick: () => {
+          const sc = this.aquarium();
+          if (sc && !sc.feed()) this.toast('Ils viennent de manger ! Patiente un peu.');
+        },
+      }, sprite('ico-fish'), 'Nourrir'),
       h('button', { class: 'btn', onclick: () => this.openFishPanel(this.floor) },
         sprite('fishicon'), `${floor.fish.length}/${TANK_CAPACITY}`),
     );
@@ -318,7 +337,7 @@ export class UI {
 
   // ------------------------------------------------------------------- carnet
 
-  openJournal(tab: 'fish' | 'stars' = 'fish'): void {
+  openJournal(): void {
     const sim = services.sim;
     const total = SPECIES.length;
     const body = h('div', { class: 'panel-body' });
@@ -329,7 +348,7 @@ export class UI {
       if (f && !pendingBySpecies.has(f.fish.species)) pendingBySpecies.set(f.fish.species, uid);
     }
 
-    if (tab === 'fish') {
+    {
       for (const entry of FLOOR_PLAN.filter((e) => !e.comingSoon)) {
         const list = speciesForBiome(entry.biome);
         const found = list.filter((s) => sim.state.journal[s.id]).length;
@@ -346,7 +365,7 @@ export class UI {
             class: `card${known ? '' : ' locked'}`,
             onclick: () => {
               services.audio.play('click');
-              if (known) this.openSpeciesSheet(s.id, () => this.openJournal('fish'));
+              if (known) this.openSpeciesSheet(s.id, () => this.openJournal());
               else if (pending) this.openIdentify(pending);
               else this.openHint(s);
             },
@@ -358,42 +377,59 @@ export class UI {
         }
         body.append(grid);
       }
-    } else {
-      const grid = h('div', { class: 'grid' });
-      for (const star of STARS) {
-        const visits = sim.state.stars[star.id] ?? 0;
-        grid.append(h('div', {
-          class: `card${visits ? '' : ' locked'}`,
-          onclick: () => {
-            if (!visits) return this.toast(`Cette star viendra peut-être quand la tour sera au niveau ${star.level}.`);
-            this.openStarSheet(star.id);
-          },
-        },
-        h('div', { class: 'thumb' }, fit(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 46, 24, 2)),
-        h('div', null, visits ? star.name : '???'),
-        h('div', { class: 'muted' }, visits ? `${visits} visite${visits > 1 ? 's' : ''}` : `Niv. ${star.level}`)));
-      }
-      body.append(
-        h('p', { class: 'muted' }, 'Des célébrités (presque) connues passent parfois visiter la tour. Touche-les pour un autographe !'),
-        grid,
-      );
     }
 
     const found = discoveredCount(sim.state);
-    const seenStars = STARS.filter((s) => sim.state.stars[s.id]).length;
     const panel = h('div', { class: 'panel' },
-      this.head('Carnet du soigneur'),
-      h('div', { class: 'tabs' },
-        h('button', { class: `tab${tab === 'fish' ? ' on' : ''}`, onclick: () => this.openJournal('fish') }, `Poissons ${found}/${total}`),
-        h('button', { class: `tab${tab === 'stars' ? ' on' : ''}`, onclick: () => this.openJournal('stars') }, `Livre d’or ${seenStars}/${STARS.length}`)),
+      this.head(`Carnet du soigneur · ${found}/${total}`),
       body,
+    );
+    this.open(panel);
+  }
+
+  // --------------------------------------------------------------- album des stars
+
+  /** Stars venues pour la première fois depuis la dernière ouverture de l'album. */
+  private newStars = new Set<StarId>();
+
+  openStarAlbum(): void {
+    const sim = services.sim;
+    const level = levelProgress(sim.state.xp).level;
+    const seen = STARS.filter((s) => sim.state.stars[s.id]).length;
+    const grid = h('div', { class: 'grid two' });
+    for (const star of STARS) {
+      const visits = sim.state.stars[star.id] ?? 0;
+      const isNew = this.newStars.has(star.id);
+      grid.append(h('div', {
+        class: `card star-card${visits ? '' : ' locked'}`,
+        style: visits ? `background: linear-gradient(${star.color}, #fff 85%);` : '',
+        onclick: () => {
+          services.audio.play('click');
+          if (visits) this.openStarSheet(star.id);
+        },
+      },
+      isNew ? h('span', { class: 'tag new' }, 'NOUVEAU') : null,
+      h('div', { class: 'portrait' }, fit(visits ? starKey(star.id) : `${starKey(star.id)}-sil`, 60, 46, 2)),
+      h('b', null, visits ? star.name : '???'),
+      visits
+        ? h('div', { class: 'muted' }, `${visits} visite${visits > 1 ? 's' : ''} · ${star.nod}`)
+        : h('div', { class: 'muted' }, star.hint),
+      visits ? null : h('div', { class: 'lock' }, level >= star.level ? 'Peut passer à tout moment…' : `À partir du niveau ${star.level}`)));
+    }
+    this.newStars.clear();
+    this.renderHud();
+    const panel = h('div', { class: 'panel' },
+      this.head(`Album des stars · ${seen}/${STARS.length}`),
+      h('div', { class: 'panel-body' },
+        h('p', { class: 'muted' }, 'Des célébrités (presque) connues passent parfois admirer tes aquariums. Repère l’étoile au-dessus de leur tête et touche-les pour un autographe !'),
+        grid),
     );
     this.open(panel);
   }
 
   private openHint(s: Species): void {
     const panel = h('div', { class: 'panel' },
-      this.head('Espèce inconnue', () => this.openJournal('fish')),
+      this.head('Espèce inconnue', () => this.openJournal()),
       h('div', { class: 'panel-body center' },
         h('div', { class: 'sheet-hero', style: waterBg(s.biome) }, fit(`${fishKey(s.id)}-sil`, 140, 46)),
         h('p', null, h('b', null, BIOMES[s.biome].name), ' · ', RARITY_NAMES[s.rarity], ' ', h('span', { class: 'stars' }, stars(s.rarity))),
@@ -432,9 +468,9 @@ export class UI {
   private openStarSheet(id: StarId): void {
     const star = STARS_BY_ID[id];
     const panel = h('div', { class: 'panel' },
-      this.head(star.name, () => this.openJournal('stars')),
+      this.head(star.name, () => this.openStarAlbum()),
       h('div', { class: 'panel-body center' },
-        h('div', { class: 'sheet-hero', style: 'background: linear-gradient(#fbeedd, #f3dcc0);' }, fit(starKey(id), 140, 46)),
+        h('div', { class: 'sheet-hero', style: `background: linear-gradient(${star.color}, #fff);` }, fit(starKey(id), 140, 46)),
         h('div', { class: 'fact-box' }, `« ${star.quote} »`),
         h('p', { class: 'muted' }, `Clin d’œil à : ${star.nod}`),
         h('p', null, `Visites : ${services.sim.state.stars[id] ?? 0}`)),
