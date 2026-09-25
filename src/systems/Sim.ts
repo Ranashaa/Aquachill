@@ -1,17 +1,23 @@
-import { DROP_AUTO_COLLECT, OFFLINE_CAP_SECONDS } from '../config';
+import { DROP_AUTO_COLLECT, OFFLINE_CAP_SECONDS, TANK_CAPACITY } from '../config';
 import { BIOMES, type Temp } from '../data/biomes';
 import { DECOR, type DecorId } from '../data/decor';
 import { XP } from '../data/progression';
 import { SPECIES_BY_ID, type Species, type SpeciesId } from '../data/species';
 import { STARS_BY_ID, type StarId } from '../data/stars';
-import { createFloor, findFish, type FishInstance, type GameState } from '../state/GameState';
+import {
+  createFloor, findFish, type Expedition, type FishInstance, type GameState, type LogEntry, type Mission, type NewsItem,
+} from '../state/GameState';
+import { DESTINATIONS_BY_ID, type DestinationId } from '../data/expeditions';
+import type { MissionKind } from '../data/missions';
+import { hearts } from '../data/personality';
 import { saveGame } from '../state/SaveManager';
 import { cleanliness, growAlgae, scrub } from './algae';
 import { attractionTick } from './attraction';
 import { cleanReward, estimatedIncomeRate, floorAppeal, maxVisitors, spawnInterval, visitIncome } from './economy';
 import { Emitter } from './Emitter';
 import { levelForXp, requirementStatus } from './progression';
-import { hash01, pickWeighted, type Rng } from './rng';
+import { hash01, pick, pickWeighted, type Rng } from './rng';
+import { breedingPair, expeditionFind, newFish, refillMissions, stageAt } from './life';
 import {
   maybePickStar, nextPhase, phaseDuration, visitSpots, VISITOR_LOOKS,
   type CoinDrop, type Visitor,
@@ -32,6 +38,14 @@ export type SimEvents = {
   identifyChanged: number;
   cleaned: { floor: number; reward: number };
   toast: string;
+  fishGrew: { floor: number; fish: FishInstance };
+  eggLaid: { floor: number; fish: FishInstance };
+  petted: { floor: number; fish: FishInstance; gained: boolean };
+  expeditionStarted: Expedition;
+  expeditionDone: { entry: LogEntry; coins: number };
+  missionDone: Mission;
+  missionsChanged: Mission[];
+  news: NewsItem;
 };
 
 export interface IdentifyResult {
@@ -55,7 +69,16 @@ export class Sim {
   private saveIn = 10;
   private dirtyFloors = new Set<number>();
 
-  constructor(public state: GameState, private rng: Rng = Math.random) {}
+  private lifeT = 0;
+  private breedT = new Map<number, number>();
+
+  constructor(public state: GameState, private rng: Rng = Math.random, private clock: () => number = Date.now) {
+    if (state.missions.length < 3) state.missions = refillMissions(state.missions, rng);
+  }
+
+  now(): number {
+    return this.clock();
+  }
 
   get level(): number {
     return levelForXp(this.state.xp);
@@ -86,6 +109,11 @@ export class Sim {
     });
 
     this.updateVisitors(dt);
+    this.lifeT -= dt;
+    if (this.lifeT <= 0) {
+      this.lifeT = 1;
+      this.updateLife();
+    }
 
     for (const drop of this.drops) drop.age += dt;
     for (const drop of this.drops.filter((d) => d.age >= DROP_AUTO_COLLECT)) this.collectDrop(drop.id, true);
@@ -152,6 +180,7 @@ export class Sim {
     const floor = this.state.floors[v.floor];
     if (!floor) return;
     this.state.stats.visitors++;
+    this.progress('visitors');
     this.addXp(v.star ? XP.starVisit : XP.visit);
     const amount = visitIncome(floor) * (v.star ? 3 : 1);
     const drop: CoinDrop = {
@@ -224,6 +253,7 @@ export class Sim {
     const previous = floor.slots[slot];
     if (previous) this.state.inventory[previous] = (this.state.inventory[previous] ?? 0) + 1;
     floor.slots[slot] = id;
+    this.progress('decor');
     this.events.emit('floorChanged', floorIndex);
     return true;
   }
@@ -253,6 +283,7 @@ export class Sim {
       const reward = cleanReward(floor);
       this.addCoins(reward);
       this.events.emit('cleaned', { floor: floorIndex, reward });
+      this.progress('clean');
     }
     return removed;
   }
@@ -261,7 +292,7 @@ export class Sim {
 
   welcomeFish(floorIndex: number, species: SpeciesId): FishInstance {
     const s = this.state;
-    const fish: FishInstance = { uid: s.nextUid++, species, since: Date.now() };
+    const fish = newFish(s, species, this.rng, this.now());
     s.floors[floorIndex].fish.push(fish);
     const entry = s.journal[species];
     const isNew = !entry;
@@ -289,7 +320,8 @@ export class Sim {
     s.toIdentify = s.toIdentify.filter((x) => !sameSpecies.includes(x));
     let reward = 0;
     if (!s.journal[species.id]) {
-      s.journal[species.id] = { at: Date.now(), count: sameSpecies.length || 1, guessed: correct };
+      s.journal[species.id] = { at: this.now(), count: sameSpecies.length || 1, guessed: correct };
+      this.progress('identify');
       this.addXp(XP.newSpecies + (correct ? XP.identifyBonus : 0));
       if (correct) {
         reward = Math.round(10 * BIOMES[species.biome].income);
@@ -313,6 +345,162 @@ export class Sim {
     }
     this.events.emit('fishLeft', { floor: found.floor, uid });
     this.events.emit('floorChanged', found.floor);
+  }
+
+  // ------------------------------------------------------ vie des poissons
+
+  /** Croissance, éclosions, pontes et retour d'expédition. */
+  private updateLife(): void {
+    const s = this.state;
+    const now = this.now();
+    s.floors.forEach((floor, i) => {
+      for (const fish of floor.fish) {
+        const stage = stageAt(fish, now);
+        if (stage === fish.stage) continue;
+        const hatched = fish.stage === 'egg';
+        fish.stage = stage;
+        if (hatched) {
+          this.progress('hatch');
+          const sp = SPECIES_BY_ID[fish.species];
+          this.addNews(`${fish.name} vient d’éclore (${sp.name}) !`, 'heart');
+          if (!s.journal[fish.species] && !s.toIdentify.includes(fish.uid)) {
+            s.toIdentify.push(fish.uid);
+            this.events.emit('identifyChanged', s.toIdentify.length);
+          }
+        } else if (stage === 'adult') {
+          this.addNews(`${fish.name} est devenu adulte.`, 'ico-star');
+        }
+        if (fish.variant) s.variantsSeen[fish.species] = true;
+        this.events.emit('fishGrew', { floor: i, fish });
+        this.events.emit('floorChanged', i);
+      }
+      // ponte : un couple heureux et complice
+      const t = (this.breedT.get(i) ?? 60) - 1;
+      this.breedT.set(i, t);
+      if (t <= 0) {
+        this.breedT.set(i, 90 + this.rng() * 90);
+        const pair = breedingPair(floor);
+        if (pair && this.rng() < 0.35) {
+          const egg = newFish(s, pair[0].species, this.rng, now, {
+            bornAt: now, stage: 'egg', variant: this.rng() < 0.12, parents: [pair[0].name, pair[1].name],
+          });
+          floor.fish.push(egg);
+          this.addNews(`${pair[0].name} et ${pair[1].name} ont pondu un œuf !`, 'heart');
+          this.events.emit('eggLaid', { floor: i, fish: egg });
+          this.events.emit('floorChanged', i);
+        }
+      }
+    });
+    if (s.expedition && now >= s.expedition.end) this.finishExpedition();
+  }
+
+  /** Caresser un poisson : il est content, et l'amitié grandit (avec une petite pause). */
+  petFish(uid: number): boolean {
+    const found = findFish(this.state, uid);
+    if (!found || found.fish.stage === 'egg') return false;
+    const fish = found.fish;
+    const now = this.now();
+    const gained = now - fish.lastPet > 20_000;
+    if (gained) {
+      fish.lastPet = now;
+      const before = hearts(fish.friendship);
+      fish.friendship = Math.min(100, fish.friendship + 5);
+      this.progress('pet');
+      if (hearts(fish.friendship) > before) this.addNews(`${fish.name} t’apprécie de plus en plus (${hearts(fish.friendship)} ♥).`, 'ico-heart');
+    }
+    this.events.emit('petted', { floor: found.floor, fish, gained });
+    return gained;
+  }
+
+  /** Le repas rapproche les poissons de leur soigneur. */
+  feedFloor(floorIndex: number): void {
+    for (const fish of this.state.floors[floorIndex]?.fish ?? []) {
+      if (fish.stage !== 'egg') fish.friendship = Math.min(100, fish.friendship + 2);
+    }
+    this.progress('feed');
+  }
+
+  renameFish(uid: number, name: string): void {
+    const found = findFish(this.state, uid);
+    const clean = name.trim().slice(0, 16);
+    if (!found || !clean || clean === found.fish.name) return;
+    found.fish.name = clean;
+    this.progress('name');
+    this.events.emit('floorChanged', found.floor);
+  }
+
+  // ------------------------------------------------------------ expéditions
+
+  startExpedition(dest: DestinationId): boolean {
+    const s = this.state;
+    const d = DESTINATIONS_BY_ID[dest];
+    if (s.expedition || !s.floors.some((f) => f.biome === d.biome)) return false;
+    const now = this.now();
+    s.expedition = { dest, start: now, end: now + d.minutes * 60_000 };
+    this.events.emit('expeditionStarted', s.expedition);
+    this.save();
+    return true;
+  }
+
+  private finishExpedition(): void {
+    const s = this.state;
+    const exp = s.expedition!;
+    s.expedition = null;
+    const d = DESTINATIONS_BY_ID[exp.dest];
+    const found = expeditionFind(exp.dest, this.discoveredSet(), this.rng);
+    const entry: LogEntry = { at: this.now(), dest: exp.dest, ...found, postcard: pick(d.postcards, this.rng) };
+    s.logbook.unshift(entry);
+    s.logbook = s.logbook.slice(0, 30);
+    s.eggs.push({ ...found, from: exp.dest });
+    const coins = 20 + Math.floor(this.rng() * 40);
+    this.addCoins(coins);
+    this.progress('expedition');
+    this.addNews(`Le sous-marin est rentré de : ${d.name}, avec un œuf !`, 'ico-fish');
+    this.events.emit('expeditionDone', { entry, coins });
+    this.save();
+  }
+
+  /** Dépose un œuf rapporté dans un aquarium du bon biome. */
+  placeEgg(eggIndex: number, floorIndex: number): boolean {
+    const s = this.state;
+    const egg = s.eggs[eggIndex];
+    const floor = s.floors[floorIndex];
+    if (!egg || !floor || SPECIES_BY_ID[egg.species].biome !== floor.biome || floor.fish.length >= TANK_CAPACITY) return false;
+    const now = this.now();
+    floor.fish.push(newFish(s, egg.species, this.rng, now, { bornAt: now, stage: 'egg', variant: egg.variant }));
+    s.eggs.splice(eggIndex, 1);
+    this.events.emit('floorChanged', floorIndex);
+    return true;
+  }
+
+  // ---------------------------------------------------------- objectifs
+
+  progress(kind: MissionKind, n = 1): void {
+    const s = this.state;
+    let changed = false;
+    for (const m of s.missions) {
+      if (m.kind !== kind || m.progress >= m.target) continue;
+      m.progress = Math.min(m.target, m.progress + n);
+      changed = true;
+      if (m.progress >= m.target) {
+        this.addCoins(m.reward);
+        this.addXp(5);
+        this.events.emit('missionDone', m);
+      }
+    }
+    if (!changed) return;
+    const done = s.missions.filter((m) => m.progress >= m.target).map((m) => m.kind);
+    s.missions = refillMissions(s.missions.filter((m) => m.progress < m.target), this.rng, done);
+    this.events.emit('missionsChanged', s.missions);
+  }
+
+  // --------------------------------------------------------------- nouvelles
+
+  addNews(text: string, icon = 'bubble'): void {
+    const item = { at: this.now(), text, icon };
+    this.state.news.unshift(item);
+    this.state.news = this.state.news.slice(0, 40);
+    this.events.emit('news', item);
   }
 
   // ----------------------------------------------------------------- tour

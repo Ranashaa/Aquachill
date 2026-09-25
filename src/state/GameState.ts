@@ -3,14 +3,65 @@ import type { BiomeId, Temp } from '../data/biomes';
 import type { DecorId } from '../data/decor';
 import type { SpeciesId } from '../data/species';
 import type { StarId } from '../data/stars';
+import type { DestinationId } from '../data/expeditions';
+import type { MissionKind } from '../data/missions';
+import type { Personality } from '../data/personality';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+export type Stage = 'egg' | 'fry' | 'juvenile' | 'adult';
 
 export interface FishInstance {
   uid: number;
   species: SpeciesId;
   /** Horodatage d'arrivée (ms). */
   since: number;
+  name: string;
+  personality: Personality;
+  /** Amitié avec le soigneur, de 0 à 100 (5 cœurs). */
+  friendship: number;
+  /** Naissance (ms) pour les poissons nés dans la tour, 0 sinon (déjà adulte). */
+  bornAt: number;
+  stage: Stage;
+  /** Variante de couleur rare. */
+  variant: boolean;
+  /** Prénoms des parents, pour les poissons nés ici. */
+  parents?: [string, string];
+  /** Dernier câlin (ms), pour espacer les gains d'amitié. */
+  lastPet: number;
+}
+
+export interface Expedition {
+  dest: DestinationId;
+  start: number;
+  end: number;
+}
+
+export interface EggInStock {
+  species: SpeciesId;
+  variant: boolean;
+  from: DestinationId;
+}
+
+export interface LogEntry {
+  at: number;
+  dest: DestinationId;
+  species: SpeciesId;
+  variant: boolean;
+  postcard: string;
+}
+
+export interface Mission {
+  kind: MissionKind;
+  target: number;
+  progress: number;
+  reward: number;
+}
+
+export interface NewsItem {
+  at: number;
+  text: string;
+  icon: string;
 }
 
 export interface FloorState {
@@ -50,6 +101,14 @@ export interface GameState {
   settings: { muted: boolean };
   stats: { visitors: number; coinsEarned: number; scrubs: number };
   tutorialDone: boolean;
+  towerName: string;
+  expedition: Expedition | null;
+  eggs: EggInStock[];
+  logbook: LogEntry[];
+  missions: Mission[];
+  news: NewsItem[];
+  /** Variantes rares déjà vues, par espèce. */
+  variantsSeen: Partial<Record<SpeciesId, boolean>>;
 }
 
 export function createFloor(biome: BiomeId): FloorState {
@@ -81,6 +140,13 @@ export function createNewState(now = Date.now()): GameState {
     settings: { muted: false },
     stats: { visitors: 0, coinsEarned: 0, scrubs: 0 },
     tutorialDone: false,
+    towerName: 'Aquachill',
+    expedition: null,
+    eggs: [],
+    logbook: [],
+    missions: [],
+    news: [],
+    variantsSeen: {},
   };
 }
 

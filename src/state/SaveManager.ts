@@ -1,8 +1,26 @@
 import { SAVE_KEY } from '../config';
+import { FISH_NAMES, PERSONALITY_LIST } from '../data/personality';
 import { createNewState, SAVE_VERSION, type GameState } from './GameState';
 
 /** Migrations successives : MIGRATIONS[n] transforme une sauvegarde v(n) en v(n+1). */
-const MIGRATIONS: Record<number, (data: any) => any> = {};
+const MIGRATIONS: Record<number, (data: any) => any> = {
+  // v1 → v2 : les poissons reçoivent un prénom, un caractère et une amitié.
+  1: (data) => {
+    let n = 0;
+    for (const floor of data.floors ?? []) {
+      for (const fish of floor.fish ?? []) {
+        fish.name ??= FISH_NAMES[(fish.uid * 7 + n++) % FISH_NAMES.length];
+        fish.personality ??= PERSONALITY_LIST[fish.uid % PERSONALITY_LIST.length];
+        fish.friendship ??= 20;
+        fish.bornAt ??= 0;
+        fish.stage ??= 'adult';
+        fish.variant ??= false;
+        fish.lastPet ??= 0;
+      }
+    }
+    return data;
+  },
+};
 
 export function migrate(data: any): GameState {
   let version = typeof data?.version === 'number' ? data.version : 0;

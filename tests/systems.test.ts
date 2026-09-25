@@ -14,6 +14,7 @@ import { levelForXp, levelProgress, requirementStatus } from '../src/systems/pro
 import { seeded } from '../src/systems/rng';
 import { Sim } from '../src/systems/Sim';
 import { visitX } from '../src/systems/visitors';
+import { newFish } from '../src/systems/life';
 
 describe('données', () => {
   it('chaque besoin d’espèce est fourni par un décor du même biome', () => {
@@ -79,7 +80,8 @@ describe('attraction', () => {
 
   it('n’attire plus quand l’aquarium est plein', () => {
     const floor = createFloor('amazon');
-    floor.fish = Array.from({ length: TANK_CAPACITY }, (_, i) => ({ uid: i, species: 'neon' as const, since: 0 }));
+    const st = createNewState();
+    floor.fish = Array.from({ length: TANK_CAPACITY }, () => newFish(st, 'neon', seeded(2), 0));
     const rng = seeded(1);
     for (let i = 0; i < 100; i++) expect(attractionTick(floor, 60, rng, new Set())).toBeNull();
   });
@@ -212,5 +214,91 @@ describe('cycle jour/nuit', () => {
     expect(daylightAt(23.5).moon).not.toBeNull();
     expect(daylightAt(19.5).night).toBeGreaterThan(0.4);
     expect(daylightAt(19.5).night).toBeLessThan(0.8);
+  });
+});
+
+import { breedingPair, stageAt, refillMissions } from '../src/systems/life';
+import { VARIANTS } from '../src/data/variants';
+import { FISH_SPRITES } from '../src/sprites/defs/fish';
+
+describe('vie des poissons', () => {
+  it('grandit de l’œuf à l’adulte', () => {
+    const st = createNewState();
+    const f = newFish(st, 'clown', seeded(1), 0, { bornAt: 1, stage: 'egg' });
+    expect(stageAt(f, 1)).toBe('egg');
+    expect(stageAt(f, 1 + 10 * 60_000)).toBe('fry');
+    expect(stageAt(f, 1 + 60 * 60_000)).toBe('juvenile');
+    expect(stageAt(f, 1 + 200 * 60_000)).toBe('adult');
+  });
+
+  it('un couple complice et heureux peut pondre, et l’œuf éclot', () => {
+    let now = 1_000_000;
+    const sim = new Sim(createNewState(), seeded(4), () => now);
+    const floor = sim.state.floors[0];
+    floor.slots = ['live_rock', 'anemone', 'brain_coral', 'seagrass', null, null];
+    const a = newFish(sim.state, 'clown', seeded(1), 0);
+    const b = newFish(sim.state, 'clown', seeded(2), 0);
+    a.friendship = b.friendship = 50;
+    floor.fish.push(a, b);
+    floor.attractIn = 1e9;
+    expect(breedingPair(floor)).not.toBeNull();
+    for (let i = 0; i < 3000 && floor.fish.length < 3; i++) sim.update(1);
+    const egg = floor.fish.find((f) => f.stage === 'egg');
+    expect(egg?.parents).toEqual([a.name, b.name]);
+    now += 10 * 60_000;
+    sim.update(1.1);
+    expect(egg!.stage).toBe('fry');
+  });
+
+  it('les caresses renforcent l’amitié, avec une pause', () => {
+    let now = 100_000;
+    const sim = new Sim(createNewState(), seeded(4), () => now);
+    const f = sim.welcomeFish(0, 'demoiselle');
+    expect(sim.petFish(f.uid)).toBe(true);
+    expect(sim.petFish(f.uid)).toBe(false);
+    now += 30_000;
+    expect(sim.petFish(f.uid)).toBe(true);
+    expect(f.friendship).toBe(20);
+  });
+
+  it('une expédition rapporte un œuf à déposer', () => {
+    let now = 0;
+    const sim = new Sim(createNewState(), seeded(5), () => now);
+    expect(sim.startExpedition('rionegro')).toBe(false); // pas d’étage Amazonie
+    expect(sim.startExpedition('lagon')).toBe(true);
+    now = 11 * 60_000;
+    sim.update(1.1);
+    expect(sim.state.expedition).toBeNull();
+    expect(sim.state.eggs).toHaveLength(1);
+    expect(sim.state.logbook[0].postcard.length).toBeGreaterThan(10);
+    expect(sim.placeEgg(0, 0)).toBe(true);
+    expect(sim.state.floors[0].fish.some((f) => f.stage === 'egg')).toBe(true);
+  });
+
+  it('les objectifs se complètent et se renouvellent', () => {
+    const sim = new Sim(createNewState(), seeded(6));
+    expect(sim.state.missions).toHaveLength(3);
+    const m = sim.state.missions[0];
+    const coins = sim.state.coins;
+    sim.progress(m.kind, m.target);
+    expect(sim.state.coins).toBeGreaterThanOrEqual(coins + m.reward);
+    expect(sim.state.missions).toHaveLength(3);
+    expect(refillMissions([], seeded(1))).toHaveLength(3);
+  });
+
+  it('les variantes ne modifient que des couleurs existantes', () => {
+    for (const [id, v] of Object.entries(VARIANTS)) {
+      for (const key of Object.keys(v.palette)) {
+        expect(FISH_SPRITES[id as keyof typeof FISH_SPRITES].palette[key], `${id}.${key}`).toBeDefined();
+      }
+    }
+  });
+
+  it('migre une sauvegarde v1', () => {
+    const v1 = { version: 1, floors: [{ ...createFloor('reef'), fish: [{ uid: 3, species: 'clown', since: 0 }] }] };
+    const st = migrate(v1);
+    expect(st.floors[0].fish[0].name).toBeTruthy();
+    expect(st.floors[0].fish[0].stage).toBe('adult');
+    expect(st.missions).toEqual([]);
   });
 });

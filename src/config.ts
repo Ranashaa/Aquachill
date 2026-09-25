@@ -23,7 +23,7 @@ export const ROOM_X1 = GAME_W - 8;
 
 /** Aquariums. */
 export const TANK_SLOTS = 6;
-export const TANK_CAPACITY = 6;
+export const TANK_CAPACITY = 8;
 export const ALGAE_COLS = 10;
 export const ALGAE_ROWS = 8;
 /** Temps (s) pour qu'une vitre propre devienne totalement sale. */
@@ -33,6 +33,6 @@ export const ALGAE_FULL_SECONDS = 30 * 60;
 export const OFFLINE_CAP_SECONDS = 2 * 3600;
 
 /** Pièces : ramassage automatique au bout de N secondes. */
-export const DROP_AUTO_COLLECT = 25;
+export const DROP_AUTO_COLLECT = 8;
 
 export const SAVE_KEY = 'aquachill.save';
