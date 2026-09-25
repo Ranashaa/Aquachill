@@ -327,7 +327,7 @@ export function drawLobby(p: Painter, night: number): void {
     g.fillRect(fx, fy, 6, 2).fillRect(fx - 2, fy - 1, 2, 4).fillRect(fx + 1, fy - 1, 3, 1);
   }
   // colonnes
-  for (const cx of [ROOM_X0 + 4, 112, 204]) {
+  for (const cx of [ROOM_X0 + 4, 112, 196]) {
     rect(g, INK, cx - 1, top + 11, 10, LOBBY_H - 23);
     rect(g, 0xece0cc, cx, top + 11, 8, LOBBY_H - 23);
     rect(g, 0xd8c8ae, cx + 6, top + 11, 2, LOBBY_H - 23);

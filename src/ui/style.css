@@ -288,12 +288,12 @@ em.sci { font-style: italic; color: var(--ink-soft); }
   text-align: center;
   font-size: calc(var(--px) * 4.5);
   cursor: pointer;
-  min-height: calc(var(--px) * 34);
+  min-height: calc(var(--px) * 40);
 }
 .card.locked { background: var(--paper-2); }
 .card.selected { outline: calc(var(--px) * 1) solid var(--accent); background: #fff4ec; }
 .card .thumb {
-  height: calc(var(--px) * 18);
+  height: calc(var(--px) * 24);
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -318,7 +318,7 @@ em.sci { font-style: italic; color: var(--ink-soft); }
 
 .sheet-hero {
   display: flex; align-items: center; justify-content: center;
-  height: calc(var(--px) * 44);
+  height: calc(var(--px) * 52);
   border-radius: calc(var(--px) * 4);
   border: calc(var(--px) * 1) solid var(--line);
   margin-bottom: calc(var(--px) * 3);
