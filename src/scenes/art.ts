@@ -72,24 +72,50 @@ export function tankBackground(textures: Phaser.Textures.TextureManager, biome: 
   return key;
 }
 
-/** Bulle d'ascenseur translucide. */
+/** Bulle d'ascenseur translucide sur socle de laiton. */
 export function capsuleTexture(textures: Phaser.Textures.TextureManager): string {
   const key = 'capsule';
-  makeCanvasTexture(textures, key, 15, 17, (ctx) => {
-    const cx = 7;
-    const cy = 8;
-    for (let y = 0; y < 17; y++) {
-      for (let x = 0; x < 15; x++) {
-        const d = Math.hypot((x - cx) / 7.3, (y - cy) / 8.3);
+  makeCanvasTexture(textures, key, 20, 27, (ctx) => {
+    const cx = 9.5;
+    const cy = 11;
+    for (let y = 0; y < 23; y++) {
+      for (let x = 0; x < 20; x++) {
+        const d = Math.hypot((x - cx) / 9.6, (y - cy) / 11.6);
         if (d > 1) continue;
-        if (d > 0.86) ctx.fillStyle = 'rgba(120,200,230,0.95)';
-        else ctx.fillStyle = 'rgba(190,240,255,0.28)';
+        ctx.fillStyle = d > 0.88 ? 'rgba(43,34,56,0.9)' : d > 0.8 ? 'rgba(200,245,255,0.9)' : 'rgba(200,245,255,0.22)';
         ctx.fillRect(x, y, 1, 1);
       }
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillRect(3, 4, 1, 3);
-    ctx.fillRect(4, 3, 2, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillRect(4, 5, 1, 4);
+    ctx.fillRect(5, 4, 2, 1);
+    // socle
+    ctx.fillStyle = '#2b2238';
+    ctx.fillRect(2, 21, 16, 6);
+    ctx.fillStyle = '#e0b048';
+    ctx.fillRect(3, 22, 14, 3);
+    ctx.fillStyle = '#a87a28';
+    ctx.fillRect(3, 25, 14, 1);
+  });
+  return key;
+}
+
+/** Halo lumineux doux (utilisé en mode additif). */
+export function glowTexture(textures: Phaser.Textures.TextureManager, r = 24, color = '#ffe8a0'): string {
+  const key = `glow-${r}-${color}`;
+  const [cr, cg, cb] = hexToRgb(color);
+  makeCanvasTexture(textures, key, r * 2, r * 2, (ctx) => {
+    for (let y = 0; y < r * 2; y++) {
+      for (let x = 0; x < r * 2; x++) {
+        const d = Math.hypot(x + 0.5 - r, y + 0.5 - r) / r;
+        if (d >= 1) continue;
+        // paliers pour garder un rendu pixel
+        const a = Math.round((1 - d) * (1 - d) * 4) / 4;
+        if (a <= 0) continue;
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${a * 0.5})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
   });
   return key;
 }

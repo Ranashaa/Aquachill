@@ -1,14 +1,13 @@
 import Phaser from 'phaser';
 import { TANK_SLOTS } from '../config';
-import { BIOMES } from '../data/biomes';
 import { services } from '../services';
-import { hexNum } from './art';
+import { drawTankFrame, drawThemeWall, themeOf } from './building';
 import { TankView } from './TankView';
 
-const W = 90; // largeur visible en pixels « art » (zoom ×2)
-const H = 160;
-const INK = 0x3a3656;
-const RECT = { x: 4, y: 18, w: 82, h: 104 };
+const W = 120; // largeur visible en pixels « art » (zoom ×2)
+const H = 214;
+const RECT = { x: 8, y: 26, w: 104, h: 116 };
+const FLOOR_Y = 172;
 
 export type AquariumMode = 'view' | 'decor';
 
@@ -35,24 +34,15 @@ export class AquariumScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setZoom(2).centerOn(W / 2, H / 2).setRoundPixels(true);
     const floor = services.sim.state.floors[this.floorIndex];
-    const p = BIOMES[floor.biome].palette;
+    const theme = themeOf(floor.biome);
 
     const g = this.add.graphics();
-    g.fillStyle(hexNum(p.wall)).fillRect(-10, -10, W + 20, H + 20);
-    g.fillStyle(hexNum(p.wallLight));
-    for (let x = 2; x < W; x += 6) g.fillRect(x, 0, 1, H);
-    g.fillStyle(hexNum(p.wallDark)).fillRect(-10, RECT.y + RECT.h + 4, W + 20, 40);
-    g.fillStyle(hexNum(p.wallLight)).fillRect(-10, RECT.y + RECT.h + 4, W + 20, 1);
-    // cadre et meuble
-    g.fillStyle(INK).fillRect(RECT.x - 2, RECT.y - 3, RECT.w + 4, RECT.h + 5);
-    g.fillStyle(0x6a6690).fillRect(RECT.x - 3, RECT.y - 4, RECT.w + 6, 2);
-    // meuble sous l'aquarium
-    const cab = RECT.y + RECT.h + 2;
-    g.fillStyle(INK).fillRect(RECT.x - 1, cab, RECT.w + 2, 17);
-    g.fillStyle(0xc8865a).fillRect(RECT.x, cab + 1, RECT.w, 15);
-    g.fillStyle(0xe0a070).fillRect(RECT.x, cab + 1, RECT.w, 2);
-    g.fillStyle(0xa86a44).fillRect(RECT.x + RECT.w / 2, cab + 4, 1, 11);
-    g.fillStyle(0xffd23a).fillRect(RECT.x + RECT.w / 2 - 3, cab + 9, 1, 2).fillRect(RECT.x + RECT.w / 2 + 3, cab + 9, 1, 2);
+    drawThemeWall(g, floor.biome, { x0: -10, x1: W + 10, y0: 0, y1: FLOOR_Y });
+    g.fillStyle(0x2b2238).fillRect(-10, FLOOR_Y + 8, W + 20, 60);
+    g.fillStyle(0x3a3654).fillRect(-10, FLOOR_Y + 9, W + 20, 60);
+    drawTankFrame(this.add.graphics().setDepth(4), RECT, theme, 18);
+    for (const lx of [RECT.x + 22, RECT.x + RECT.w - 22]) this.add.image(lx, 11, theme.lamp).setOrigin(0.5, 0).setDepth(4);
+    this.add.graphics().setDepth(4).fillStyle(0x2b2238).fillRect(-10, 10, W + 20, 1);
 
     this.tank = new TankView(this, this.floorIndex, RECT, 5, true);
 

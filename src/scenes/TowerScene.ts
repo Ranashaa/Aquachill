@@ -1,22 +1,24 @@
 import Phaser from 'phaser';
-import { FLOOR_H, GAME_H, GAME_W, HUD_BOTTOM, HUD_TOP, LOBBY_H, SHAFT_W, SHAFT_X, STREET_H } from '../config';
+import { FLOOR_H, GAME_H, GAME_W, HUD_BOTTOM, HUD_TOP, LOBBY_H, ROOM_X0, ROOM_X1, STREET_H, TANK_CAPACITY } from '../config';
 import { BIOMES } from '../data/biomes';
 import { services } from '../services';
 import { starKey, textTexture, visitorKey } from '../sprites';
-import { measureText } from '../sprites/font';
-import { requirementStatus } from '../systems/progression';
+import { discoveredCount } from '../state/GameState';
+import { happiness } from '../systems/happiness';
+import { levelForXp, requirementStatus } from '../systems/progression';
 import { visitX, type CoinDrop, type Visitor } from '../systems/visitors';
-import { capsuleTexture, cloudTexture, hexNum, skyTexture } from './art';
+import { capsuleTexture } from './art';
+import {
+  drawBanner, drawBuildSlot, drawLobby, drawRoof, drawRoom, drawShaft, drawStreet, floorTop, Painter,
+} from './building';
+import { Environment } from './Environment';
 import { TankView } from './TankView';
 
-const ROOF_H = 26;
-const INK = 0x3a3656;
-const FRAME = 0x5a5078;
-const FRAME_LIGHT = 0x7a70a0;
-const DOOR_X = 13;
-const ELEV_X = SHAFT_X + SHAFT_W / 2;
-const CORRIDOR_X0 = 8;
-const CORRIDOR_X1 = SHAFT_X - 4;
+const ROOF_H = 50;
+const SHAFT_CX = 17;
+const DOOR_X = 219;
+const CORR_L = ROOM_X0 + 8;
+const CORR_R = ROOM_X1 - 12;
 
 interface VisitorSprites {
   body: Phaser.GameObjects.Sprite;
@@ -25,20 +27,27 @@ interface VisitorSprites {
   lastX: number;
 }
 
-export const floorTop = (i: number) => -LOBBY_H - (i + 1) * FLOOR_H;
 const floorFeet = (i: number) => floorTop(i) + FLOOR_H - 2;
 const LOBBY_FEET = -3;
 
+/** Position horizontale dans une salle : 1 = près de l'ascenseur (à gauche). */
+const corridorX = (f: number) => CORR_R - f * (CORR_R - CORR_L);
+
 export class TowerScene extends Phaser.Scene {
+  private painter!: Painter;
+  private env!: Environment;
   private tanks: TankView[] = [];
-  private building: Phaser.GameObjects.GameObject[] = [];
+  private banners: Phaser.GameObjects.GameObject[][] = [];
   private visitors = new Map<number, VisitorSprites>();
   private drops = new Map<number, Phaser.GameObjects.Image>();
-  private clouds: Phaser.GameObjects.Image[] = [];
+  private streetShade?: Phaser.GameObjects.Rectangle;
   private drag = { active: false, startY: 0, startScroll: 0, moved: false, lastY: 0, lastT: 0 };
   private velocity = 0;
   private unsub: (() => void)[] = [];
-  private buildSlot: { top: number; canBuild: boolean } | null = null;
+  private buildTop: number | null = null;
+  private night = 0;
+  private bannerTimer = 0;
+  private bubbleTimer = 0;
 
   constructor() {
     super('Tower');
@@ -47,13 +56,9 @@ export class TowerScene extends Phaser.Scene {
   create(): void {
     const cam = this.cameras.main;
     cam.setRoundPixels(true);
-    this.add.image(0, 0, skyTexture(this.textures, GAME_W, GAME_H)).setOrigin(0).setScrollFactor(0).setDepth(-100);
-    const cloud = cloudTexture(this.textures);
-    for (let i = 0; i < 6; i++) {
-      this.clouds.push(
-        this.add.image(Math.random() * GAME_W, -120 - i * 70, cloud).setScrollFactor(1, 0.5).setDepth(-90).setAlpha(0.9),
-      );
-    }
+    this.painter = new Painter(this);
+    this.env = new Environment(this);
+    this.night = this.env.night;
     capsuleTexture(this.textures);
 
     this.layout();
@@ -62,17 +67,27 @@ export class TowerScene extends Phaser.Scene {
     this.setupInput();
     const sim = services.sim;
     this.unsub.push(
-      sim.events.on('floorChanged', (i) => this.tanks[i]?.refresh()),
+      sim.events.on('floorChanged', (i) => {
+        this.tanks[i]?.refresh();
+        this.drawBannerInfo(i);
+      }),
       sim.events.on('floorBuilt', (i) => {
         this.layout();
-        this.tweens.add({ targets: cam, scrollY: floorTop(i) - 80, duration: 900, ease: 'Sine.easeInOut' });
-        this.cameras.main.flash(300, 255, 255, 255);
+        this.tweens.add({ targets: cam, scrollY: floorTop(i) - 120, duration: 900, ease: 'Sine.easeInOut' });
+        cam.flash(300, 255, 255, 255);
       }),
       sim.events.on('identifyChanged', () => this.tanks.forEach((t) => t.refreshMarks())),
       sim.events.on('dropCollected', ({ drop, auto }) => this.animateCollect(drop, auto)),
-      sim.events.on('coins', () => this.refreshBuildSlot()),
-      sim.events.on('xp', () => this.refreshBuildSlot()),
+      sim.events.on('levelUp', () => this.layout()),
     );
+    let lastCanBuild = !!requirementStatus(sim.state)?.canBuild;
+    this.unsub.push(sim.events.on('coins', () => {
+      const can = !!requirementStatus(sim.state)?.canBuild;
+      if (can !== lastCanBuild) {
+        lastCanBuild = can;
+        this.layout();
+      }
+    }));
     this.events.on(Phaser.Scenes.Events.WAKE, () => {
       services.ui.setMode('tower');
       this.tanks.forEach((t) => t.refresh());
@@ -93,7 +108,7 @@ export class TowerScene extends Phaser.Scene {
   }
 
   private minScroll(): number {
-    return this.roofTop() - 40 - HUD_TOP;
+    return this.roofTop() - 90 - HUD_TOP;
   }
 
   private maxScroll(): number {
@@ -101,212 +116,77 @@ export class TowerScene extends Phaser.Scene {
   }
 
   private layout(): void {
-    this.tweens.killTweensOf(this.building);
-    this.buildBadge = undefined;
-    this.building.forEach((o) => o.destroy());
-    this.building = [];
+    const p = this.painter;
+    p.clear();
     this.tanks.forEach((t) => t.destroy());
     this.tanks = [];
+    this.banners.forEach((b) => b.forEach((o) => o.destroy()));
+    this.banners = [];
 
     const cam = this.cameras.main;
     const top = this.minScroll();
     cam.setBounds(0, top, GAME_W, this.maxScroll() + GAME_H - top);
+    this.env.anchor(this.roofTop());
 
-    this.drawStreet();
-    this.drawLobby();
-    services.sim.state.floors.forEach((floor, i) => this.drawFloor(i, floor.biome));
-    this.drawBuildSlot();
-    this.drawRoof();
-  }
+    this.streetShade = drawStreet(p);
+    drawLobby(p, this.night);
+    const sim = services.sim;
+    sim.state.floors.forEach((floor, i) => {
+      const t = floorTop(i);
+      drawShaft(p, t, FLOOR_H, String(i + 1));
+      drawBanner(p, t, BIOMES[floor.biome].sign);
+      const rect = drawRoom(p, t, floor.biome, this.night);
+      this.tanks[i] = new TankView(this, i, rect, 5);
+      this.drawBannerInfo(i);
+    });
 
-  private g(depth = 0): Phaser.GameObjects.Graphics {
-    const g = this.add.graphics().setDepth(depth);
-    this.building.push(g);
-    return g;
-  }
-
-  private img(x: number, y: number, key: string, depth = 2): Phaser.GameObjects.Image {
-    const im = this.add.image(Math.round(x), Math.round(y), key).setDepth(depth);
-    this.building.push(im);
-    return im;
-  }
-
-  private text(x: number, y: number, text: string, color = '#ffffff', shadow: string | null = '#3a3656', depth = 3) {
-    const im = this.img(x, y, textTexture(this.textures, text, color, shadow), depth);
-    return im;
-  }
-
-  private drawStreet(): void {
-    const g = this.g(1);
-    g.fillStyle(0xcfc8d8).fillRect(0, 0, GAME_W, 6);
-    g.fillStyle(0xb0a8c0).fillRect(0, 5, GAME_W, 1);
-    for (let x = 0; x < GAME_W; x += 12) g.fillStyle(0xb8b0c8).fillRect(x, 0, 1, 5);
-    g.fillStyle(0x8fcf7a).fillRect(0, 6, GAME_W, STREET_H + 60);
-    g.fillStyle(0x7abf6a);
-    for (let i = 0; i < 70; i++) g.fillRect((i * 37) % GAME_W, 8 + ((i * 13) % 20), 1, 1);
-    const flowers = [0xffb0d0, 0xfff08a, 0xffffff];
-    for (let i = 0; i < 14; i++) {
-      g.fillStyle(flowers[i % 3]).fillRect((i * 53 + 7) % GAME_W, 10 + ((i * 7) % 14), 1, 1);
+    const status = requirementStatus(sim.state);
+    this.buildTop = null;
+    if (status) {
+      const t = floorTop(sim.state.floors.length);
+      const req = status.entry.req;
+      const reqText = status.canBuild
+        ? `${req.coins} PIECES`
+        : [
+            !status.levelOk ? `NIV ${req.level}` : null,
+            !status.speciesOk ? `${req.species} ESPECES` : null,
+            `${req.coins} P.`,
+          ].filter(Boolean).join(' · ');
+      drawBuildSlot(p, t, {
+        comingSoon: !!status.entry.comingSoon,
+        canBuild: status.canBuild,
+        biomeName: BIOMES[status.entry.biome].name,
+        biomeSign: BIOMES[status.entry.biome].sign,
+        reqText,
+      }, this.night);
+      this.buildTop = t;
     }
+    drawRoof(p, this.roofTop(), !!status && !status.entry.comingSoon, this.night);
+    this.applyNight();
   }
 
-  private drawShaft(g: Phaser.GameObjects.Graphics, top: number, h: number): void {
-    g.fillStyle(0xd8f2f8).fillRect(SHAFT_X, top, SHAFT_W, h);
-    g.fillStyle(0xbfe6f0).fillRect(SHAFT_X + 3, top, 1, h).fillRect(SHAFT_X + SHAFT_W - 4, top, 1, h);
-    g.fillStyle(FRAME).fillRect(SHAFT_X, top, 1, h).fillRect(SHAFT_X + SHAFT_W - 1, top, 1, h);
-    g.fillStyle(FRAME_LIGHT).fillRect(SHAFT_X + 1, top + h - 2, SHAFT_W - 2, 2);
-    g.fillStyle(FRAME).fillRect(GAME_W - 4, top, 4, h);
-  }
-
-  private drawLobby(): void {
-    const top = -LOBBY_H;
-    const g = this.g(1);
-    // murs et sol
-    g.fillStyle(0xfbeedd).fillRect(0, top, SHAFT_X, LOBBY_H);
-    g.fillStyle(0xf3dcc0);
-    for (let x = 6; x < SHAFT_X; x += 10) g.fillRect(x, top + 2, 1, LOBBY_H - 14);
-    for (let x = 0; x < SHAFT_X; x += 6) {
-      g.fillStyle((x / 6) % 2 === 0 ? 0xe8d8c8 : 0xd8c4b0).fillRect(x, -12, 6, 6);
-      g.fillStyle((x / 6) % 2 === 0 ? 0xd8c4b0 : 0xe8d8c8).fillRect(x, -6, 6, 6);
-    }
-    g.fillStyle(FRAME).fillRect(0, top, GAME_W, 2);
-    g.fillStyle(FRAME).fillRect(0, top, 3, LOBBY_H);
-    this.drawShaft(g, top, LOBBY_H);
-    // porte d'entrée
-    g.fillStyle(INK).fillRect(3, -40, 22, 28);
-    g.fillStyle(0xbfe8f2).fillRect(5, -38, 8, 26).fillRect(15, -38, 8, 26);
-    g.fillStyle(0xffffff).fillRect(6, -37, 1, 6).fillRect(16, -37, 1, 6);
-    g.fillStyle(0xffd23a).fillRect(12, -26, 1, 3).fillRect(14, -26, 1, 3);
-    // enseigne
-    g.fillStyle(INK).fillRect(34, top + 7, 100, 18);
-    g.fillStyle(0x5fc6d8).fillRect(35, top + 8, 98, 16);
-    g.fillStyle(0x4ab0c4).fillRect(35, top + 22, 98, 2);
-    const sign = this.text(84, top + 15, 'AQUACHILL', '#ffffff', '#2a7f90', 4);
-    sign.setScale(2);
-    // comptoir d'accueil
-    g.fillStyle(0xc8865a).fillRect(66, -30, 44, 18);
-    g.fillStyle(0xe0a070).fillRect(66, -30, 44, 3);
-    g.fillStyle(0xa86a44).fillRect(68, -26, 40, 1);
-    const clerk = this.add.sprite(88, -29, visitorKey(5), 0).setOrigin(0.5, 1).setDepth(1.5);
-    this.building.push(clerk);
-    // bocal sur le comptoir
-    g.fillStyle(0xbfe8f2).fillRect(96, -36, 7, 6);
-    g.fillStyle(0xff7b1c).fillRect(99, -33, 2, 1);
-    g.fillStyle(0xffffff).fillRect(97, -35, 1, 2);
-    // plantes en pot
-    for (const px of [34, 128]) {
-      g.fillStyle(0xc8653a).fillRect(px - 4, -20, 9, 8);
-      g.fillStyle(0x5faf4a).fillRect(px - 5, -30, 11, 10);
-      g.fillStyle(0x3f8f3a).fillRect(px - 2, -34, 5, 6).fillRect(px - 5, -26, 2, 3).fillRect(px + 4, -27, 2, 3);
-    }
-    this.text(84, -44, 'BIENVENUE', '#6a6690', null, 3);
-  }
-
-  private drawFloor(i: number, biome: keyof typeof BIOMES): void {
+  /** Étoiles de bonheur et nombre de poissons sur le bandeau d'un étage. */
+  private drawBannerInfo(i: number): void {
+    this.banners[i]?.forEach((o) => o.destroy());
+    const floor = services.sim.state.floors[i];
+    if (!floor) return;
     const top = floorTop(i);
-    const p = BIOMES[biome].palette;
-    const g = this.g(1);
-    g.fillStyle(hexNum(p.wall)).fillRect(0, top, SHAFT_X, FLOOR_H);
-    g.fillStyle(hexNum(p.wallLight));
-    for (let x = 4; x < SHAFT_X; x += 8) g.fillRect(x, top + 2, 1, 46);
-    // sol
-    g.fillStyle(hexNum(p.wallDark)).fillRect(0, top + 48, SHAFT_X, FLOOR_H - 48);
-    g.fillStyle(hexNum(p.wallLight)).fillRect(0, top + 48, SHAFT_X, 1);
-    for (let x = 0; x < SHAFT_X; x += 16) g.fillStyle(hexNum(p.wall)).fillRect(x + ((i * 5) % 16), top + 52, 10, 1);
-    for (let x = 0; x < SHAFT_X; x += 16) g.fillStyle(hexNum(p.wall)).fillRect(x + 8, top + 57, 10, 1);
-    // cadre de l'étage
-    g.fillStyle(FRAME).fillRect(0, top, GAME_W, 2);
-    g.fillStyle(FRAME).fillRect(0, top, 3, FLOOR_H);
-    // lampes
-    g.fillStyle(0xfff3b0);
-    for (const x of [30, 73, 116]) g.fillRect(x - 2, top + 2, 5, 1);
-    this.drawShaft(g, top, FLOOR_H);
-    // aquarium : cadre, meuble
-    const rect = { x: 8, y: top + 10, w: 130, h: 35 };
-    g.fillStyle(INK).fillRect(rect.x - 2, rect.y - 3, rect.w + 4, rect.h + 5);
-    g.fillStyle(0x6a6690).fillRect(rect.x - 3, rect.y - 3, rect.w + 6, 2);
-    g.fillStyle(INK).fillRect(rect.x + 2, rect.y + rect.h + 2, rect.w - 4, 2);
-    // plaque
-    const sign = BIOMES[biome].sign;
-    const sw = measureText(sign) + 6;
-    g.fillStyle(INK).fillRect(73 - Math.ceil(sw / 2) - 1, top + 2, sw + 2, 6);
-    g.fillStyle(hexNum(p.accent)).fillRect(73 - Math.ceil(sw / 2), top + 2, sw, 5);
-    this.text(73, top + 5, sign, '#ffffff', null, 3);
-    // reflet de vitre (au-dessus des poissons)
-    const glass = this.g(12);
-    glass.fillStyle(0xffffff, 0.35).fillRect(rect.x + 4, rect.y + 2, 1, 8).fillRect(rect.x + 6, rect.y + 2, 1, 4);
-    glass.fillStyle(0xffffff, 0.12).fillRect(rect.x + rect.w - 20, rect.y + 2, 6, rect.h - 8);
-
-    this.tanks[i] = new TankView(this, i, rect, 5);
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const starsOn = Math.max(1, Math.round(happiness(floor) * 5));
+    const sx = ROOM_X0 + 10 + BIOMES[floor.biome].sign.length * 6;
+    for (let k = 0; k < 5; k++) {
+      objs.push(this.add.image(sx + k * 6, top + 3, k < starsOn ? 'star5' : 'star5off').setOrigin(0).setDepth(4));
+    }
+    const count = `${floor.fish.length}/${TANK_CAPACITY}`;
+    const key = textTexture(this.textures, count, '#bfefff', '#2b2238');
+    objs.push(this.add.image(GAME_W - 5, top + 2, key).setOrigin(1, 0).setDepth(4));
+    objs.push(this.add.image(GAME_W - 8 - this.textures.get(key).getSourceImage().width, top + 5, 'fishicon').setOrigin(1, 0.5).setDepth(4));
+    this.banners[i] = objs;
   }
 
-  private drawBuildSlot(): void {
-    const status = requirementStatus(services.sim.state);
-    const i = services.sim.state.floors.length;
-    this.buildSlot = null;
-    if (!status) return;
-    const top = floorTop(i);
-    const g = this.g(1);
-    g.fillStyle(0xf4efe6, 0.85).fillRect(0, top, SHAFT_X, FLOOR_H);
-    // échafaudage
-    g.fillStyle(0xd8a040);
-    for (let x = 4; x < SHAFT_X; x += 22) g.fillRect(x, top, 2, FLOOR_H);
-    for (let y = top + 8; y < top + FLOOR_H; y += 20) g.fillRect(0, y, SHAFT_X, 2);
-    g.fillStyle(0xe8c070);
-    for (let x = 4; x < SHAFT_X - 22; x += 22) {
-      for (let k = 0; k < 20; k++) g.fillRect(x + k, top + 8 + k, 1, 1);
-    }
-    g.fillStyle(FRAME).fillRect(0, top, 3, FLOOR_H);
-    this.drawShaft(g, top, FLOOR_H);
-
-    const panel = this.g(3);
-    panel.fillStyle(INK).fillRect(26, top + 18, 96, 30);
-    panel.fillStyle(0xfdf6e8).fillRect(27, top + 19, 94, 28);
-    const biome = BIOMES[status.entry.biome];
-    if (status.entry.comingSoon) {
-      this.text(74, top + 25, 'BIENTOT', '#e8883a', null, 4);
-      this.text(74, top + 33, biome.sign, '#3a3656', null, 4);
-      this.text(74, top + 41, 'EN CONSTRUCTION', '#6a6690', null, 4);
-    } else {
-      this.text(74, top + 25, 'NOUVEL ETAGE', '#e8883a', null, 4);
-      this.text(74, top + 33, `${biome.sign} ?`, '#3a3656', null, 4);
-      this.text(74, top + 41, 'TOUCHE ICI', '#6a6690', null, 4);
-    }
-    this.buildSlot = { top, canBuild: status.canBuild };
-    this.refreshBuildSlot();
-  }
-
-  private buildBadge?: Phaser.GameObjects.Image;
-
-  private refreshBuildSlot(): void {
-    const status = requirementStatus(services.sim.state);
-    if (!this.buildSlot || !status) return;
-    const can = status.canBuild;
-    if (can && !this.buildBadge) {
-      this.buildBadge = this.img(118, this.buildSlot.top + 18, 'sparkle', 5);
-      this.tweens.add({ targets: this.buildBadge, scale: 1.6, angle: 90, yoyo: true, repeat: -1, duration: 600 });
-    } else if (!can && this.buildBadge) {
-      this.tweens.killTweensOf(this.buildBadge);
-      this.buildBadge.destroy();
-      this.buildBadge = undefined;
-    }
-  }
-
-  private drawRoof(): void {
-    const top = this.roofTop();
-    const g = this.g(1);
-    g.fillStyle(FRAME).fillRect(0, top + ROOF_H - 4, GAME_W, 4);
-    g.fillStyle(FRAME_LIGHT).fillRect(0, top + ROOF_H - 6, GAME_W, 2);
-    // enseigne sur le toit
-    g.fillStyle(INK).fillRect(40, top + 2, 70, 14);
-    g.fillStyle(0xff8a5c).fillRect(41, top + 3, 68, 12);
-    g.fillStyle(INK).fillRect(55, top + 16, 2, 4).fillRect(93, top + 16, 2, 4);
-    this.text(75, top + 9, 'AQUACHILL', '#ffffff', '#b04a2a', 3);
-    // antenne et drapeau
-    g.fillStyle(INK).fillRect(150, top - 10, 1, 30);
-    const flag = this.add.rectangle(151, top - 10, 8, 5, 0x5fc6d8).setOrigin(0).setDepth(2);
-    this.building.push(flag);
-    this.tweens.add({ targets: flag, scaleX: 0.7, yoyo: true, repeat: -1, duration: 700, ease: 'Sine.easeInOut' });
+  private applyNight(): void {
+    this.painter.setNight(this.night);
+    this.streetShade?.setFillStyle(0x0a0820, this.night * 0.55);
   }
 
   // --------------------------------------------------------------------- entrées
@@ -345,37 +225,38 @@ export class TowerScene extends Phaser.Scene {
 
   private handleTap(x: number, y: number): void {
     const sim = services.sim;
-    // pièces
     for (const [id, img] of this.drops) {
-      if (Math.hypot(img.x - x, img.y - y) < 9) {
+      if (Math.hypot(img.x - x, img.y - y) < 10) {
         sim.collectDrop(id);
         return;
       }
     }
-    // stars
     for (const [id, vs] of this.visitors) {
       const v = sim.visitors.find((o) => o.id === id);
-      if (v?.star && Math.hypot(vs.body.x - x, vs.body.y - 6 - y) < 9) {
+      if (v?.star && Math.abs(vs.body.x - x) < 9 && y < vs.body.y + 2 && y > vs.body.y - 26) {
         if (!sim.tapStar(id)) services.ui.showStarQuote(v.star);
         return;
       }
     }
-    // étages
-    const floors = sim.state.floors.length;
-    for (let i = 0; i < floors; i++) {
+    for (let i = 0; i < sim.state.floors.length; i++) {
       const top = floorTop(i);
-      if (y >= top && y < top + FLOOR_H && x < SHAFT_X) {
+      if (y >= top && y < top + FLOOR_H && x >= ROOM_X0) {
         services.audio.play('bubble');
         this.openAquarium(i);
         return;
       }
     }
-    if (this.buildSlot && y >= this.buildSlot.top && y < this.buildSlot.top + FLOOR_H) {
+    if (this.buildTop !== null && y >= this.buildTop && y < this.buildTop + FLOOR_H) {
       services.audio.play('click');
       services.ui.openBuildPanel();
       return;
     }
-    if (y >= -LOBBY_H && y < 0) services.ui.toast('Bienvenue à Aquachill ! Touche un aquarium pour t’en occuper.');
+    if (y >= -LOBBY_H && y < 0) {
+      const s = sim.state;
+      services.ui.toast(
+        `Bienvenue ! Tour niveau ${levelForXp(s.xp)} · ${s.stats.visitors} visiteurs · ${discoveredCount(s)} espèces.`,
+      );
+    }
   }
 
   openAquarium(i: number): void {
@@ -385,22 +266,31 @@ export class TowerScene extends Phaser.Scene {
 
   // --------------------------------------------------------------------- visiteurs
 
-  private visitorPos(v: Visitor): { x: number; y: number; walking: boolean; inCapsule: boolean; alpha: number } {
+  private visitorPos(v: Visitor) {
     const k = Math.min(1, v.t / v.dur);
     const ease = Phaser.Math.Easing.Sine.InOut(k);
+    const fade = (a: number) => Math.min(1, a * 8);
     switch (v.phase) {
       case 'walkIn':
-        return { x: DOOR_X + (ELEV_X - DOOR_X) * k, y: LOBBY_FEET, walking: true, inCapsule: false, alpha: Math.min(1, k * 8) };
+        return { x: DOOR_X + (SHAFT_CX - DOOR_X) * k, y: LOBBY_FEET, walking: true, back: false, inCapsule: k > 0.93, alpha: fade(k) };
       case 'rideUp':
-        return { x: ELEV_X, y: LOBBY_FEET + (floorFeet(v.floor) - LOBBY_FEET) * ease, walking: false, inCapsule: true, alpha: 1 };
+        return { x: SHAFT_CX, y: LOBBY_FEET + (floorFeet(v.floor) - LOBBY_FEET) * ease, walking: false, back: false, inCapsule: true, alpha: 1 };
       case 'visit': {
         const { x, walking } = visitX(v.seed, k);
-        return { x: CORRIDOR_X0 + x * (CORRIDOR_X1 - CORRIDOR_X0), y: floorFeet(v.floor), walking, inCapsule: false, alpha: 1 };
+        let px = corridorX(x);
+        // sortie et retour dans la bulle
+        if (k < 0.04) px = SHAFT_CX + (corridorX(visitX(v.seed, 0.04).x) - SHAFT_CX) * (k / 0.04);
+        if (k > 0.97) {
+          const from = corridorX(visitX(v.seed, 0.97).x);
+          px = from + (SHAFT_CX - from) * ((k - 0.97) / 0.03);
+        }
+        const out = k < 0.04 || k > 0.97;
+        return { x: px, y: floorFeet(v.floor), walking: walking || out, back: !walking && !out, inCapsule: false, alpha: 1 };
       }
       case 'rideDown':
-        return { x: ELEV_X, y: floorFeet(v.floor) + (LOBBY_FEET - floorFeet(v.floor)) * ease, walking: false, inCapsule: true, alpha: 1 };
+        return { x: SHAFT_CX, y: floorFeet(v.floor) + (LOBBY_FEET - floorFeet(v.floor)) * ease, walking: false, back: false, inCapsule: true, alpha: 1 };
       case 'walkOut':
-        return { x: ELEV_X + (DOOR_X - ELEV_X) * k, y: LOBBY_FEET, walking: true, inCapsule: false, alpha: Math.min(1, (1 - k) * 8) };
+        return { x: SHAFT_CX + (DOOR_X - SHAFT_CX) * k, y: LOBBY_FEET, walking: true, back: false, inCapsule: k < 0.07, alpha: fade(1 - k) };
     }
   }
 
@@ -413,7 +303,7 @@ export class TowerScene extends Phaser.Scene {
       if (!vs) {
         const key = v.star ? starKey(v.star) : visitorKey(v.look);
         const body = this.add.sprite(0, 0, key, 0).setOrigin(0.5, 1).setDepth(20);
-        const capsule = this.add.image(0, 0, 'capsule').setDepth(21).setVisible(false);
+        const capsule = this.add.image(0, 0, 'capsule').setOrigin(0.5, 1).setDepth(21).setVisible(false);
         vs = { body, capsule, lastX: 0 };
         if (v.star) {
           vs.star = this.add.image(0, 0, 'star').setDepth(22);
@@ -424,14 +314,17 @@ export class TowerScene extends Phaser.Scene {
       const pos = this.visitorPos(v);
       const x = Math.round(pos.x);
       const y = Math.round(pos.y);
-      vs.body.setPosition(x, y).setAlpha(pos.alpha);
+      vs.body.setPosition(x, y).setAlpha(pos.alpha).setDepth(pos.inCapsule ? 19 : 20);
       const frames = vs.body.texture.frameTotal - 1;
-      if (frames >= 3) vs.body.setFrame(pos.walking ? 1 + (Math.floor(time / 160 + v.id) % 2) : 0);
-      else vs.body.y = y - (pos.walking ? Math.floor(time / 160) % 2 : 0);
+      if (frames >= 4) {
+        vs.body.setFrame(pos.walking ? 1 + (Math.floor(time / 150 + v.id) % 2) : pos.back ? 3 : 0);
+      } else if (pos.walking) {
+        vs.body.y = y - (Math.floor(time / 150) % 2);
+      }
       if (x !== vs.lastX) vs.body.setFlipX(x < vs.lastX);
       vs.lastX = x;
-      vs.capsule.setVisible(pos.inCapsule).setPosition(x, y - 7);
-      vs.star?.setPosition(x, y - vs.body.height - 4).setAlpha(pos.alpha).setVisible(!v.starTapped);
+      vs.capsule.setVisible(pos.inCapsule).setPosition(SHAFT_CX, y + 3);
+      vs.star?.setPosition(x, y - vs.body.height - 5).setAlpha(pos.alpha).setVisible(!v.starTapped);
     }
     for (const [id, vs] of this.visitors) {
       if (seen.has(id)) continue;
@@ -448,8 +341,8 @@ export class TowerScene extends Phaser.Scene {
   private syncDrops(): void {
     for (const drop of services.sim.drops) {
       if (this.drops.has(drop.id)) continue;
-      const x = Math.round(CORRIDOR_X0 + drop.x * (CORRIDOR_X1 - CORRIDOR_X0));
-      const y = floorTop(drop.floor) + 50;
+      const x = Math.round(corridorX(drop.x));
+      const y = floorTop(drop.floor) + 72;
       const img = this.add.image(x, y, drop.star ? 'starcoin' : 'coin').setDepth(25);
       this.tweens.add({ targets: img, y: y - 3, yoyo: true, repeat: -1, duration: 700, ease: 'Sine.easeInOut' });
       this.tweens.add({ targets: img, scaleX: 0.3, yoyo: true, repeat: -1, duration: 500, delay: 300, repeatDelay: 1400 });
@@ -463,19 +356,27 @@ export class TowerScene extends Phaser.Scene {
     this.drops.delete(drop.id);
     this.tweens.killTweensOf(img);
     if (!auto) services.audio.play('coin');
-    const label = this.add.image(img.x, img.y - 6, textTexture(this.textures, `+${drop.amount}`, '#ffe066')).setDepth(26);
-    this.tweens.add({
-      targets: img,
-      y: img.y - 16,
-      alpha: 0,
-      scale: auto ? 0.6 : 1.4,
-      duration: 500,
-      onComplete: () => img.destroy(),
-    });
+    const label = this.add.image(img.x, img.y - 8, textTexture(this.textures, `+${drop.amount}`, '#ffe066')).setDepth(26);
+    this.tweens.add({ targets: img, y: img.y - 16, alpha: 0, scale: auto ? 0.6 : 1.4, duration: 500, onComplete: () => img.destroy() });
     this.tweens.add({ targets: label, y: label.y - 12, alpha: 0, duration: 900, delay: 200, onComplete: () => label.destroy() });
   }
 
-  // -------------------------------------------------------------------- boucle
+  /** Bulles qui montent dans la colonne d'eau de l'ascenseur. */
+  private shaftBubbles(dt: number): void {
+    this.bubbleTimer -= dt;
+    if (this.bubbleTimer > 0) return;
+    this.bubbleTimer = 0.25;
+    const view = this.cameras.main.worldView;
+    const b = this.add.rectangle(8 + Math.floor(Math.random() * 18), view.bottom, Math.random() < 0.3 ? 2 : 1, Math.random() < 0.3 ? 2 : 1, 0xe8fbff, 0.8).setDepth(3.5);
+    this.tweens.add({
+      targets: b,
+      y: Math.max(view.y, this.roofTop() + 24),
+      duration: 3000 + Math.random() * 2000,
+      onComplete: () => b.destroy(),
+    });
+  }
+
+  // ------------------------------------------------------------------------ boucle
 
   update(time: number, delta: number): void {
     const dt = Math.min(delta, 100) / 1000;
@@ -484,15 +385,22 @@ export class TowerScene extends Phaser.Scene {
       cam.scrollY += this.velocity * dt;
       this.velocity *= Math.pow(0.04, dt);
     }
-    for (const c of this.clouds) {
-      c.x += dt * 2;
-      if (c.x > GAME_W + 20) c.x = -20;
+    this.env.update(dt);
+    if (Math.abs(this.env.night - this.night) > 0.05) {
+      this.night = this.env.night;
+      this.layout();
     }
     const view = cam.worldView;
     this.tanks.forEach((tank, i) => {
       const top = floorTop(i);
       tank.update(dt, top + FLOOR_H > view.y && top < view.bottom);
     });
+    this.bannerTimer -= dt;
+    if (this.bannerTimer <= 0) {
+      this.bannerTimer = 5;
+      services.sim.state.floors.forEach((_, i) => this.drawBannerInfo(i));
+    }
+    this.shaftBubbles(dt);
     this.syncVisitors(time);
     this.syncDrops();
   }

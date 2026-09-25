@@ -245,7 +245,7 @@ export class UI {
     opts: { icon?: string; img?: string; onClick?: () => void; duration?: number } = {},
   ): void {
     const key = opts.img ?? opts.icon;
-    const el = h('div', { class: 'toast' }, key ? sprite(key) : null, msg);
+    const el = h('div', { class: 'toast' }, key ? fit(key, 12, 12, 1) : null, msg);
     if (opts.onClick) {
       el.style.pointerEvents = 'auto';
       el.style.cursor = 'pointer';

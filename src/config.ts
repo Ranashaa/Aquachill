@@ -1,19 +1,25 @@
 // Constantes globales du jeu. Toutes les dimensions sont en pixels « logiques ».
 
 /** Résolution logique (portrait 9:16), agrandie à l'écran en pixels nets. */
-export const GAME_W = 180;
-export const GAME_H = 320;
+export const GAME_W = 240;
+export const GAME_H = 427;
+/** Largeur de référence de l'interface HTML (unité CSS --px = largeur écran / UI_W). */
+export const UI_W = 180;
 
 /** Hauteur réservée par l'interface HTML (barre du haut / du bas), en pixels logiques. */
-export const HUD_TOP = 22;
-export const HUD_BOTTOM = 30;
+export const HUD_TOP = 30;
+export const HUD_BOTTOM = 40;
 
 /** Géométrie de la tour. */
-export const FLOOR_H = 64;
-export const LOBBY_H = 72;
-export const STREET_H = 28;
-export const SHAFT_X = 146; // début de la cage d'ascenseur
-export const SHAFT_W = 30;
+export const FLOOR_H = 96;
+export const LOBBY_H = 112;
+export const STREET_H = 34;
+/** Colonne d'eau de l'ascenseur-bulle, à gauche de la tour. */
+export const SHAFT_X = 0;
+export const SHAFT_W = 34;
+/** Bords intérieurs des pièces. */
+export const ROOM_X0 = SHAFT_W;
+export const ROOM_X1 = GAME_W - 8;
 
 /** Aquariums. */
 export const TANK_SLOTS = 6;

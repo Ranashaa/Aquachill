@@ -5,8 +5,9 @@ import type { StarId } from '../data/stars';
 import { DECOR_SPRITES } from './defs/decor';
 import { FISH_SPRITES } from './defs/fish';
 import { personFrames, STAR_SPECS, visitorLooks } from './defs/people';
+import { ROOM_SPRITES } from './defs/room';
 import { UI_SPRITES } from './defs/ui';
-import { drawText, GLYPH_H, measureText } from './font';
+import { drawText, fontHeight, measureText, type FontId } from './font';
 import {
   defToCanvas, fishSecondFrame, registerDef, registerFrames, registerSilhouette,
 } from './SpriteFactory';
@@ -31,25 +32,34 @@ export function generateTextures(textures: Phaser.Textures.TextureManager): void
     registerSilhouette(starKey(id as StarId), frames[0], '#3a3656');
   }
   for (const [key, def] of Object.entries(UI_SPRITES)) registerDef(textures, key, def);
+  for (const [key, def] of Object.entries(ROOM_SPRITES)) registerDef(textures, `room-${key}`, def);
+  // ouvriers du chantier : casque jaune et gilet orange
+  WORKERS.forEach((spec, i) => registerDef(textures, `worker-${i}`, ...personFrames(spec)));
 }
 
-/** Texture de texte pixel (mise en cache par contenu et couleur). */
+const WORKERS = [
+  { skin: '#f0c29a', hair: '#4a3222', hairStyle: 'cap' as const, cap: '#ffc83a', shirt: '#ff8a2a', pants: '#3a4a8a', shoes: '#6a3a2a' },
+  { skin: '#a8704a', hair: '#23191a', hairStyle: 'cap' as const, cap: '#ffc83a', shirt: '#ff8a2a', pants: '#3a4a8a', shoes: '#2b2238' },
+];
+
+/** Texture de texte pixel (mise en cache par contenu, couleur et police). */
 export function textTexture(
   textures: Phaser.Textures.TextureManager,
   text: string,
   color = '#ffffff',
-  shadow: string | null = '#3a3656',
+  shadow: string | null = '#2b2238',
+  font: FontId = 'big',
 ): string {
-  const key = `txt:${color}:${shadow}:${text}`;
+  const key = `txt:${font}:${color}:${shadow}:${text}`;
   if (textures.exists(key)) return key;
-  const w = Math.max(1, measureText(text) + (shadow ? 1 : 0));
-  const h = GLYPH_H + (shadow ? 1 : 0);
+  const w = Math.max(1, measureText(text, font) + (shadow ? 1 : 0));
+  const h = fontHeight(font) + (shadow ? 1 : 0);
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  if (shadow) drawText(ctx, text, 1, 1, shadow);
-  drawText(ctx, text, 0, 0, color);
+  if (shadow) drawText(ctx, text, 1, 1, shadow, font);
+  drawText(ctx, text, 0, 0, color, font);
   registerFrames(textures, key, [canvas]);
   return key;
 }
