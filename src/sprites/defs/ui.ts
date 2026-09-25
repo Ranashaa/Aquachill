@@ -152,6 +152,38 @@ export const UI_SPRITES: Record<string, SpriteDef> = {
       '...g...', '...g...', '..ggg..', '.ooooo.',
     ],
   },
+  eggs: {
+    palette: { o: '#8a6a4a', e: '#fff0c8', E: '#ffd08a', d: '#e8603a' },
+    rows: ['.oo..oo.', 'oeEooeEo', 'oedeoedo', 'oeeooeeo', '.ooeEoo.', '..oedo..', '..oeeo..', '...oo...'],
+  },
+  sub: {
+    palette: { o: '#2b2238', Y: '#ffc83a', y: '#d89a1a', w: '#bfefff', g: '#8a86a8', r: '#e84a3a' },
+    rows: [
+      '........oo..........',
+      '........og..........',
+      '......oooooo........',
+      '....ooYYYYYYoo......',
+      '..ooYYYYYYYYYYoo..o.',
+      '.oYYowwoYowwoYYYoooo',
+      'oYYYowwoYowwoYYYYYYo',
+      'oYYYYooYYYooYYYYyyYo',
+      '.oyYYYYYYYYYYYYyyoro',
+      '..ooyyyyyyyyyyyoo.o.',
+      '....oooooooooooo....',
+    ],
+  },
+  'ico-sub': {
+    palette: { o: '#2b2238', Y: '#ffc83a', w: '#bfefff' },
+    rows: ['...oo....', '..oYYo...', '.oYYYYo.o', 'oYwYwYYoo', 'oYYYYYYYo', '.oooooo.o'],
+  },
+  'ico-list': {
+    palette: { o: '#2b2238', w: '#ffffff', g: '#3aa84a' },
+    rows: ['ooooooo', 'owwwwwo', 'ogwoowo', 'owwwwwo', 'ogwoowo', 'owwwwwo', 'ooooooo'],
+  },
+  'ico-bell': {
+    palette: { y: '#ffc83a', o: '#2b2238' },
+    rows: ['...o...', '..yyy..', '.yyyyy.', '.yyyyy.', '.yyyyy.', 'yyyyyyy', '...o...'],
+  },
   crane: {
     palette: { y: '#ffc23a', k: '#3a3656', g: '#8a8a94' },
     rows: [

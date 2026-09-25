@@ -8,7 +8,7 @@ import {
 import { STARS, STARS_BY_ID, type StarId } from '../data/stars';
 import type { AquariumScene } from '../scenes/AquariumScene';
 import { services } from '../services';
-import { decorKey, fishKey, starKey } from '../sprites';
+import { decorKey, fishKey, fishTexture, starKey } from '../sprites';
 import { spriteCanvasSize, spriteUrl } from '../sprites/SpriteFactory';
 import { discoveredCount, findFish } from '../state/GameState';
 import { clearSave } from '../state/SaveManager';
@@ -18,8 +18,12 @@ import { happiness, mood, MOOD_TEXT } from '../systems/happiness';
 import { levelProgress, requirementStatus } from '../systems/progression';
 import { shuffle } from '../systems/rng';
 import { h, pxImg } from './dom';
+import { DESTINATIONS, DESTINATIONS_BY_ID } from '../data/expeditions';
+import { hearts, PERSONALITIES } from '../data/personality';
+import { VARIANTS } from '../data/variants';
+import { minutesToNextStage, missionText, STAGE_NAMES } from '../systems/life';
 
-type Mode = 'tower' | 'aquarium';
+type Mode = 'tower' | 'aquarium' | 'zen';
 
 const stars = (r: Rarity) => ({ common: '★☆☆', uncommon: '★★☆', rare: '★★★' })[r];
 
@@ -34,6 +38,14 @@ function fit(key: string, maxW: number, maxH: number, maxScale = 5): HTMLImageEl
   let scale = Math.min(maxScale, Math.floor(Math.min(maxW / w, maxH / hh)));
   if (scale < 1) scale = Math.min(maxW / w, maxH / hh);
   return pxImg(spriteUrl(key), w, hh, scale);
+}
+
+function timeAgo(at: number): string {
+  const min = Math.round((services.sim.now() - at) / 60_000);
+  if (min < 1) return 'à l’instant';
+  if (min < 60) return `il y a ${min} min`;
+  const hours = Math.round(min / 60);
+  return hours < 24 ? `il y a ${hours} h` : `il y a ${Math.round(hours / 24)} j`;
 }
 
 function waterBg(biome: Species['biome']): string {
@@ -81,14 +93,11 @@ export class UI {
           duration: 6000,
         });
       } else {
-        services.audio.play('bubble');
-        this.toast(`${s.name} a rejoint l’aquarium ${where} !`, { img: fishKey(s.id) });
+        sim.addNews(`${fish.name} (${s.name}) a rejoint l’aquarium ${where}.`, fishKey(s.id));
       }
       if (this.mode === 'aquarium') this.refreshAquariumHud();
     });
     sim.events.on('starArrived', (v) => {
-      if (this.mode !== 'tower') return;
-      services.audio.play('star');
       const star = STARS_BY_ID[v.star!];
       if (services.sim.state.stars[star.id] === 1) {
         this.newStars.add(star.id);
@@ -98,7 +107,7 @@ export class UI {
         });
         this.renderHud();
       } else {
-        this.toast(`${star.name} visite la tour ! Touche-le pour un autographe.`, { img: starKey(star.id), duration: 5000 });
+        sim.addNews(`${star.name} est de retour dans la tour.`, starKey(star.id));
       }
     });
     sim.events.on('starTapped', ({ visitor, bonus }) => {
@@ -113,6 +122,42 @@ export class UI {
       const b = BIOMES[sim.state.floors[i].biome];
       this.toast(`Nouvel étage : ${b.name} ! De nouvelles espèces t’attendent.`, { icon: 'sparkle', duration: 5000 });
     });
+    sim.events.on('eggLaid', ({ fish }) => {
+      this.toast(`Un œuf est apparu ! (${fish.parents?.join(' + ')})`, { icon: 'eggs', duration: 5000 });
+    });
+    sim.events.on('fishGrew', ({ fish }) => {
+      if (fish.stage === 'fry') {
+        services.audio.play('newFish');
+        this.toast(`${fish.name} vient d’éclore !${fish.variant ? ' Une couleur rare !' : ''}`, {
+          img: fishTexture(fish), duration: 5000, onClick: () => this.openFishCard(fish.uid),
+        });
+      }
+    });
+    sim.events.on('expeditionDone', ({ entry }) => {
+      services.audio.play('levelUp');
+      this.toast('Le sous-marin est rentré avec un œuf ! Touche pour le voir.', {
+        icon: 'ico-sub', duration: 8000, onClick: () => this.openExpedition(),
+      });
+      void entry;
+      this.renderHud();
+    });
+    sim.events.on('expeditionStarted', () => this.renderHud());
+    sim.events.on('missionDone', (m) => {
+      services.audio.play('coin');
+      this.toast(`Objectif atteint : ${missionText(m)} ! +${m.reward}`, { icon: 'ico-list', duration: 5000 });
+    });
+    sim.events.on('news', () => {
+      this.unread++;
+      this.updateBell();
+    });
+  }
+
+  private unread = 0;
+  private bell = h('span', { class: 'badge' });
+
+  private updateBell(): void {
+    this.bell.textContent = String(this.unread);
+    this.bell.style.display = this.unread ? '' : 'none';
   }
 
   // ======================================================================= HUD
@@ -155,25 +200,44 @@ export class UI {
     return btn;
   }
 
+  /** Bouton-outil : icône et légende, façon barre d'outils. */
+  private tool(icon: string, label: string, onclick: () => void, badge?: string | number | null, active = false): HTMLElement {
+    return h('button', { class: `tool${active ? ' active' : ''}`, onclick: () => { services.audio.play('click'); onclick(); } },
+      sprite(icon), h('span', null, label), badge ? h('span', { class: 'badge' }, badge) : null);
+  }
+
   renderHud(): void {
     const sim = services.sim;
+    this.root.classList.toggle('zen', this.mode === 'zen');
+    if (this.mode === 'zen') {
+      this.hudBottom.replaceChildren(
+        this.tool('fishicon', 'Quitter', () => this.aquarium()?.setZen(false) ?? this.setMode('aquarium', this.floor)),
+        this.tool('bubble', 'Respirer', () => this.openBreathing()),
+        this.tool('ico-camera', 'Photo', () => this.aquarium()?.photo()),
+      );
+      return;
+    }
     if (this.mode === 'tower') {
+      const bellBtn = h('button', { class: 'btn icon', title: 'Nouvelles', 'aria-label': 'Nouvelles', onclick: () => this.openNews() }, sprite('ico-bell'), this.bell);
+      bellBtn.style.position = 'relative';
+      this.updateBell();
       this.hudTop.replaceChildren(
         this.coinPill(),
         h('div', { class: 'level' }, this.levelText, h('div', { class: 'xpbar' }, this.xpFill)),
         h('div', { class: 'spacer' }),
+        bellBtn,
         this.soundBtn(),
         h('button', { class: 'btn icon', title: 'Réglages', 'aria-label': 'Réglages', onclick: () => this.openSettings() }, sprite('gear')),
       );
       const pending = sim.state.toIdentify.length;
+      const exp = sim.state.expedition;
+      const missionsLeft = sim.state.missions.filter((m) => m.progress < m.target).length;
       const buttons = [
-        h('button', { class: 'btn', onclick: () => this.openJournal() }, sprite('book'), 'Carnet'),
-        h('button', { class: 'btn', onclick: () => this.openStarAlbum() }, sprite('star'), 'Stars',
-          this.newStars.size ? h('span', { class: 'badge' }, this.newStars.size) : null),
-        pending
-          ? h('button', { class: 'btn primary', onclick: () => this.openIdentify() },
-              sprite('question'), 'Identifier', h('span', { class: 'badge' }, pending))
-          : null,
+        this.tool('book', 'Carnet', () => this.openJournal()),
+        this.tool('star', 'Stars', () => this.openStarAlbum(), this.newStars.size || null),
+        this.tool('ico-sub', exp ? 'En mer' : 'Sous-marin', () => this.openExpedition(), sim.state.eggs.length || null),
+        this.tool('ico-list', 'Objectifs', () => this.openMissions(), missionsLeft || null),
+        pending ? this.tool('question', 'Identifier', () => this.openIdentify(), pending, true) : null,
         this.buildHint(),
       ];
       this.hudBottom.replaceChildren(...buttons.filter((b): b is HTMLElement => !!b));
@@ -193,9 +257,7 @@ export class UI {
 
   private buildHint(): HTMLElement | null {
     this.canBuild = !!requirementStatus(services.sim.state)?.canBuild;
-    return this.canBuild
-      ? h('button', { class: 'btn teal', onclick: () => this.openBuildPanel() }, sprite('sparkle'), 'Construire')
-      : null;
+    return this.canBuild ? this.tool('sparkle', 'Construire', () => this.openBuildPanel(), '!', true) : null;
   }
 
   /** Affiche ou retire le bouton « Construire » quand les conditions changent. */
@@ -216,38 +278,28 @@ export class UI {
     const scene = this.aquarium();
     const decorOn = scene?.mode === 'decor';
     this.hudBottom.replaceChildren(
-      h('button', {
-        class: `btn${decorOn ? ' active' : ''}`,
-        onclick: () => {
-          services.audio.play('click');
-          const sc = this.aquarium();
-          if (!sc) return;
-          sc.setMode(sc.mode === 'decor' ? 'view' : 'decor');
-          if (sc.mode === 'decor') this.toast('Touche un emplacement pour y poser un objet.');
-          this.renderAquariumBottom();
-        },
-      }, sprite('plant'), decorOn ? 'Terminé' : 'Décorer'),
-      h('button', {
-        class: 'btn',
-        title: 'Température',
-        onclick: () => {
-          const t = ((floor.temp + 1) % 3) as Temp;
-          services.sim.setTemp(this.floor, t);
-          services.audio.play('bubble');
-          this.toast(`Eau ${TEMP_NAMES[t].toLowerCase()} : ${tempLabel(floor.biome, t)}`, { icon: 'thermo' });
-          this.renderAquariumBottom();
-        },
-      }, sprite('thermo'), tempLabel(floor.biome, floor.temp)),
-      h('button', {
-        class: 'btn',
-        title: 'Nourrir',
-        onclick: () => {
-          const sc = this.aquarium();
-          if (sc && !sc.feed()) this.toast('Ils viennent de manger ! Patiente un peu.');
-        },
-      }, sprite('ico-fish'), 'Nourrir'),
-      h('button', { class: 'btn', onclick: () => this.openFishPanel(this.floor) },
-        sprite('fishicon'), `${floor.fish.length}/${TANK_CAPACITY}`),
+      this.tool('plant', decorOn ? 'Terminé' : 'Décorer', () => {
+        const sc = this.aquarium();
+        if (!sc) return;
+        sc.setMode(sc.mode === 'decor' ? 'view' : 'decor');
+        if (sc.mode === 'decor') this.toast('Touche un emplacement pour y poser un objet.');
+        this.renderAquariumBottom();
+      }, null, decorOn),
+      this.tool('thermo', tempLabel(floor.biome, floor.temp), () => {
+        const t = ((floor.temp + 1) % 3) as Temp;
+        services.sim.setTemp(this.floor, t);
+        this.toast(`Eau ${TEMP_NAMES[t].toLowerCase()} : ${tempLabel(floor.biome, t)}`, { icon: 'thermo' });
+        this.renderAquariumBottom();
+      }),
+      this.tool('ico-fish', 'Nourrir', () => {
+        const sc = this.aquarium();
+        if (sc && !sc.feed()) this.toast('Ils viennent de manger ! Patiente un peu.');
+      }),
+      this.tool('fishicon', `${floor.fish.length}/${TANK_CAPACITY}`, () => this.openFishPanel(this.floor)),
+      this.tool('bubble', 'Zen', () => {
+        this.aquarium()?.setZen(true);
+        this.setMode('zen', this.floor);
+      }),
     );
   }
 
@@ -322,15 +374,25 @@ export class UI {
       ['coin', 'Des visiteurs admirent tes aquariums et laissent des pièces : touche-les pour les ramasser.'],
       ['plant', 'Touche un aquarium pour le décorer. Le bon décor et la bonne température attirent de nouvelles espèces.'],
       ['sparkle', 'Quand les algues poussent, frotte la vitre du doigt. Des poissons heureux rendent les visiteurs généreux.'],
+      ['heart', 'Chaque poisson a un prénom et un caractère : caresse-le, nourris-le, et il deviendra ton ami.'],
       ['book', 'Identifie chaque nouveau venu pour remplir ton carnet et débloquer de nouveaux étages.'],
     ];
+    const name = h('input', { class: 'name-input', value: services.sim.state.towerName, maxlength: '14', 'aria-label': 'Nom de ta tour' });
     const panel = h('div', { class: 'panel' },
-      h('div', { class: 'panel-head' }, 'Bienvenue à Aquachill !'),
+      h('div', { class: 'panel-head' }, 'Bienvenue dans ta tour !'),
       h('div', { class: 'panel-body' },
-        h('p', { class: 'muted' }, 'Ici, rien ne presse : aucun poisson ne meurt, jamais.'),
+        h('p', { class: 'muted' }, 'Ici, rien ne presse : aucun poisson ne meurt, jamais. C’est ton petit jardin d’eau.'),
+        h('div', { class: 'req' }, h('b', null, 'Nom de ta tour :'), name),
         ...tips.map(([icon, text]) => h('div', { class: 'req' }, sprite(icon), text))),
       h('div', { class: 'panel-foot' },
-        h('button', { class: 'btn primary', onclick: () => { this.closeModal(); onDone(); } }, 'C’est parti !')),
+        h('button', {
+          class: 'btn primary',
+          onclick: () => {
+            services.sim.renameTower(name.value);
+            this.closeModal();
+            onDone();
+          },
+        }, 'C’est parti !')),
     );
     this.open(panel, true);
   }
@@ -385,6 +447,206 @@ export class UI {
       body,
     );
     this.open(panel);
+  }
+
+  // ------------------------------------------------------------ fiche d'un poisson
+
+  openFishCard(uid: number): void {
+    const sim = services.sim;
+    const found = findFish(sim.state, uid);
+    if (!found) return;
+    const fish = found.fish;
+    const sp = SPECIES_BY_ID[fish.species];
+    const known = !!sim.state.journal[fish.species];
+    const now = sim.now();
+    const hs = hearts(fish.friendship);
+    const input = h('input', { class: 'name-input', value: fish.name, maxlength: '16', 'aria-label': 'Prénom' });
+    const rename = h('button', {
+      class: 'btn small',
+      onclick: () => {
+        sim.renameFish(uid, input.value);
+        this.toast(`Il s’appelle désormais ${fish.name} !`, { img: fishTexture(fish) });
+        this.openFishCard(uid);
+      },
+    }, 'Renommer');
+    const next = minutesToNextStage(fish, now);
+    const variant = fish.variant ? VARIANTS[fish.species] : null;
+    let confirm = false;
+    const release = h('button', { class: 'btn small' }, 'Relâcher');
+    release.addEventListener('click', () => {
+      if (!confirm) {
+        confirm = true;
+        release.textContent = 'Vraiment ?';
+        return;
+      }
+      sim.releaseFish(uid);
+      this.toast(`${fish.name} retourne à la nature. Bon voyage !`);
+      this.openFishPanel(found.floor);
+    });
+    const panel = h('div', { class: 'panel' },
+      this.head(fish.name, () => this.openFishPanel(found.floor)),
+      h('div', { class: 'panel-body' },
+        h('div', { class: 'sheet-hero', style: waterBg(sp.biome) },
+          fish.stage === 'egg' ? fit('eggs', 140, 46) : fit(fishTexture(fish), 140, 46)),
+        h('div', { class: 'req' }, input, rename),
+        h('div', { class: 'hearts' }, ...Array.from({ length: 5 }, (_, k) => h('span', { class: k < hs ? 'on' : '' }, '♥')),
+          h('span', { class: 'muted' }, hs >= 5 ? ' Meilleurs amis !' : ' Caresse-le et nourris-le pour gagner sa confiance.')),
+        h('dl', { class: 'facts' },
+          h('dt', null, 'Espèce'), h('dd', null, known ? sp.name : '???'),
+          h('dt', null, 'Caractère'), h('dd', null, h('b', null, PERSONALITIES[fish.personality].label), ' — ', PERSONALITIES[fish.personality].text),
+          h('dt', null, 'Âge'), h('dd', null, STAGE_NAMES[fish.stage], next ? ` (prochaine étape dans ${next} min)` : ''),
+          fish.parents ? h('dt', null, 'Parents') : null, fish.parents ? h('dd', null, fish.parents.join(' et ')) : null,
+          variant ? h('dt', null, 'Couleur') : null, variant ? h('dd', null, h('b', null, `Variante rare « ${variant.name} »`), ` — ${variant.note}`) : null),
+        h('p', { class: 'center' },
+          known ? h('button', { class: 'btn small', onclick: () => this.openSpeciesSheet(fish.species, () => this.openFishCard(uid)) }, 'Fiche de l’espèce') : null,
+          ' ', release)),
+    );
+    this.open(panel);
+  }
+
+  // ------------------------------------------------------------------- objectifs
+
+  openMissions(): void {
+    const sim = services.sim;
+    const body = h('div', { class: 'panel-body' },
+      h('p', { class: 'muted' }, 'Pas de chrono, pas de pression : de petites idées pour prendre soin de ta tour.'));
+    for (const m of sim.state.missions) {
+      body.append(h('div', { class: 'mission' },
+        h('div', null, h('b', null, missionText(m))),
+        h('div', { class: 'xpbar' }, h('div', { style: `width:${Math.round((m.progress / m.target) * 100)}%` })),
+        h('div', { class: 'muted' }, `${m.progress}/${m.target} · récompense ${m.reward} pièces`)));
+    }
+    this.open(h('div', { class: 'panel' }, this.head('Objectifs du jour'), body));
+  }
+
+  // -------------------------------------------------------------------- nouvelles
+
+  openNews(): void {
+    this.unread = 0;
+    this.updateBell();
+    const news = services.sim.state.news;
+    const body = h('div', { class: 'panel-body' });
+    if (!news.length) body.append(h('p', { class: 'muted' }, 'Rien de neuf pour l’instant. Tout est calme.'));
+    for (const n of news) {
+      body.append(h('div', { class: 'req news' }, fit(n.icon, 14, 12, 1), h('div', { style: 'flex:1' }, n.text,
+        h('div', { class: 'muted' }, timeAgo(n.at)))));
+    }
+    this.open(h('div', { class: 'panel' }, this.head('Nouvelles de la tour'), body));
+  }
+
+  /** Résumé au retour : ce qui s'est passé pendant l'absence. */
+  openReturnSummary(since: number, coins: number, arrivals: number): void {
+    const news = services.sim.state.news.filter((n) => n.at > since).slice(0, 6);
+    const body = h('div', { class: 'panel-body' },
+      h('div', { class: 'req' }, sprite('coin'), `+${coins} pièces laissées par les visiteurs`),
+      arrivals ? h('div', { class: 'req' }, sprite('fishicon'), `${arrivals} nouveau${arrivals > 1 ? 'x' : ''} pensionnaire${arrivals > 1 ? 's' : ''}`) : null,
+      ...news.map((n) => h('div', { class: 'req news' }, fit(n.icon, 14, 12, 1), n.text)));
+    this.open(h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, 'Pendant ton absence…'),
+      body,
+      h('div', { class: 'panel-foot' }, h('button', { class: 'btn primary', onclick: () => this.closeModal() }, 'Bon retour !'))), true);
+  }
+
+  // ------------------------------------------------------------------ sous-marin
+
+  openExpedition(): void {
+    const sim = services.sim;
+    const s = sim.state;
+    const body = h('div', { class: 'panel-body' });
+    const exp = s.expedition;
+    if (exp) {
+      const d = DESTINATIONS_BY_ID[exp.dest];
+      const left = Math.max(0, Math.ceil((exp.end - sim.now()) / 60_000));
+      body.append(
+        h('div', { class: 'sheet-hero', style: waterBg(d.biome) }, fit('sub', 140, 40, 3)),
+        h('p', { class: 'center' }, `En route vers : `, h('b', null, d.name)),
+        h('p', { class: 'center muted' }, `Retour dans environ ${left} min. Tu peux fermer le jeu, il t’attendra.`));
+    } else {
+      body.append(h('p', { class: 'muted' }, 'Le petit sous-marin part explorer un milieu naturel et rapporte un œuf… et une carte postale.'));
+      for (const d of DESTINATIONS) {
+        const open = s.floors.some((f) => f.biome === d.biome);
+        body.append(h('div', { class: `dest${open ? '' : ' locked'}` },
+          h('div', { style: 'flex:1' }, h('b', null, d.name), h('div', { class: 'muted' }, d.blurb),
+            h('div', { class: 'muted' }, open ? `Durée : ${d.minutes} min` : `Nécessite l’étage ${BIOMES[d.biome].name}`)),
+          h('button', {
+            class: 'btn small primary', disabled: !open,
+            onclick: () => {
+              if (sim.startExpedition(d.id)) {
+                services.audio.play('bubble');
+                this.toast(`Le sous-marin plonge vers : ${d.name} !`, { icon: 'ico-sub' });
+                this.openExpedition();
+              }
+            },
+          }, 'Partir')));
+      }
+    }
+    if (s.eggs.length) {
+      body.append(h('div', { class: 'section-title' }, 'Œufs rapportés'));
+      s.eggs.forEach((egg, i) => {
+        const sp = SPECIES_BY_ID[egg.species];
+        const targets = s.floors.map((f, fi) => ({ f, fi })).filter(({ f }) => f.biome === sp.biome);
+        const room = targets.find(({ f }) => f.fish.length < TANK_CAPACITY);
+        body.append(h('div', { class: 'req' }, sprite('eggs'),
+          h('div', { style: 'flex:1' }, `Œuf de ${BIOMES[sp.biome].name}`, h('div', { class: 'muted' }, 'Quelle espèce ? Surprise à l’éclosion !')),
+          h('button', {
+            class: 'btn small primary', disabled: !room,
+            onclick: () => {
+              if (room && sim.placeEgg(i, room.fi)) {
+                services.audio.play('place');
+                this.toast(`L’œuf est bien au chaud dans l’aquarium ${BIOMES[sp.biome].name}.`, { icon: 'eggs' });
+                this.openExpedition();
+              }
+            },
+          }, room ? 'Déposer' : 'Plein')));
+      });
+    }
+    if (s.logbook.length) {
+      body.append(h('div', { class: 'section-title' }, 'Carnet de bord'));
+      for (const e of s.logbook.slice(0, 8)) {
+        body.append(h('div', { class: 'postcard' },
+          h('b', null, DESTINATIONS_BY_ID[e.dest].name), h('span', { class: 'muted' }, ` · ${timeAgo(e.at)}`),
+          h('p', null, `« ${e.postcard} »`)));
+      }
+    }
+    this.open(h('div', { class: 'panel' }, this.head('Le petit sous-marin'), body));
+  }
+
+  // ---------------------------------------------------------------- respiration
+
+  /** Respiration guidée : inspirer 4 s, retenir 4 s, expirer 6 s, cinq fois. */
+  openBreathing(): void {
+    const circle = h('div', { class: 'breath-circle' });
+    const label = h('div', { class: 'breath-label' }, 'Installe-toi confortablement…');
+    const overlay = h('div', { class: 'breath' }, circle, label,
+      h('button', { class: 'btn small', onclick: () => stop() }, 'Arrêter'));
+    this.root.append(overlay);
+    const phases: [string, number, number][] = [['Inspire…', 4000, 1], ['Retiens…', 4000, 1], ['Expire…', 6000, 0]];
+    let cycle = 0;
+    let i = -1;
+    let timer = 0;
+    const stop = () => {
+      clearTimeout(timer);
+      overlay.remove();
+    };
+    const step = () => {
+      i++;
+      if (i >= phases.length) {
+        i = 0;
+        cycle++;
+      }
+      if (cycle >= 5) {
+        label.textContent = 'Merci d’avoir pris ce moment. 🌿';
+        services.sim.progress('breathe');
+        timer = window.setTimeout(stop, 2500);
+        return;
+      }
+      const [text, ms, size] = phases[i];
+      label.textContent = text;
+      circle.style.transitionDuration = `${ms}ms`;
+      circle.style.transform = `scale(${size ? 1 : 0.45})`;
+      timer = window.setTimeout(step, ms);
+    };
+    timer = window.setTimeout(step, 1500);
   }
 
   // --------------------------------------------------------------- album des stars
@@ -619,29 +881,19 @@ export class UI {
     );
     if (floor.fish.length === 0) body.append(h('p', { class: 'muted' }, 'Aucun pensionnaire pour l’instant… Patience, ils arrivent !'));
     for (const fish of floor.fish) {
-      const s = SPECIES_BY_ID[fish.species];
+      const sp = SPECIES_BY_ID[fish.species];
       const pending = sim.state.toIdentify.includes(fish.uid);
-      let confirm = false;
-      const release = h('button', { class: 'btn small' }, 'Relâcher');
-      release.addEventListener('click', () => {
-        if (!confirm) {
-          confirm = true;
-          release.textContent = 'Sûr ?';
-          return;
-        }
-        sim.releaseFish(fish.uid);
-        services.audio.play('bubble');
-        this.toast(`${pending ? 'Le poisson' : s.name} retourne à la nature. Bon voyage !`);
-        this.openFishPanel(floorIndex);
-      });
-      body.append(h('div', { class: 'req' },
-        h('div', { style: `width: calc(var(--px) * 24); display:flex; justify-content:center;` }, sprite(fishKey(s.id), 1.5)),
-        h('div', { style: 'flex:1' }, pending ? 'Espèce inconnue' : s.name),
-        pending
-          ? h('button', { class: 'btn small primary', onclick: () => this.openIdentify(fish.uid) }, 'Identifier')
-          : h('button', { class: 'btn small', onclick: () => this.openSpeciesSheet(s.id, () => this.openFishPanel(floorIndex)) }, 'Fiche'),
-        release));
+      const known = !!sim.state.journal[fish.species];
+      const hs = hearts(fish.friendship);
+      body.append(h('div', { class: 'req fish-row', onclick: () => (pending ? this.openIdentify(fish.uid) : this.openFishCard(fish.uid)) },
+        h('div', { class: 'fish-thumb' }, fish.stage === 'egg' ? sprite('eggs') : fit(fishTexture(fish), 24, 14, 2)),
+        h('div', { style: 'flex:1' },
+          h('b', null, fish.name), fish.variant ? h('span', { class: 'tag-inline' }, 'rare') : null,
+          h('div', { class: 'muted' }, `${known ? sp.name : 'Espèce inconnue'} · ${STAGE_NAMES[fish.stage]}`)),
+        h('div', { class: 'hearts small' }, ...Array.from({ length: 5 }, (_, k) => h('span', { class: k < hs ? 'on' : '' }, '♥'))),
+        pending ? h('span', { class: 'tag-inline' }, '?') : null));
     }
+    body.append(h('p', { class: 'muted' }, 'Touche un poisson dans l’aquarium pour lui faire un câlin, deux fois pour ouvrir sa fiche.'));
     // Qui pourrait venir ?
     const eligible = eligibleSpecies(floor);
     const known = eligible.filter((s) => sim.state.journal[s.id]);
@@ -736,6 +988,17 @@ export class UI {
         h('p', null, `Visiteurs accueillis : ${st.visitors}`),
         h('p', null, `Pièces gagnées : ${st.coinsEarned}`),
         h('p', null, `Espèces identifiées : ${discoveredCount(sim.state)}/${SPECIES.length}`),
+        h('div', { class: 'section-title' }, 'Ta tour'),
+        (() => {
+          const input = h('input', { class: 'name-input', value: sim.state.towerName, maxlength: '14' });
+          return h('div', { class: 'req' }, input, h('button', {
+            class: 'btn small',
+            onclick: () => {
+              sim.renameTower(input.value);
+              this.toast(`Ta tour s’appelle désormais « ${sim.state.towerName} ».`);
+            },
+          }, 'Renommer'));
+        })(),
         h('div', { class: 'section-title' }, 'Sauvegarde'),
         h('p', { class: 'muted' }, 'La partie est sauvegardée automatiquement dans ce navigateur.'),
         reset,

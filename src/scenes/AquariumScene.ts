@@ -60,6 +60,9 @@ export class AquariumScene extends Phaser.Scene {
         services.ui.refreshAquariumHud();
       }),
       sim.events.on('identifyChanged', () => this.tank.refreshMarks()),
+      sim.events.on('eggLaid', ({ floor }) => {
+        if (floor === this.floorIndex) services.audio.play('newFish');
+      }),
       sim.events.on('cleaned', ({ floor }) => {
         if (floor === this.floorIndex) this.celebrateClean();
       }),
@@ -77,6 +80,55 @@ export class AquariumScene extends Phaser.Scene {
   }
 
   private lastFeed = -Infinity;
+  private lastPetUid = -1;
+  private lastPetAt = 0;
+  zen = false;
+  private vignette?: Phaser.GameObjects.Graphics;
+
+  /** Mode contemplation : plus d'interface, juste l'aquarium. */
+  setZen(on: boolean): void {
+    this.zen = on;
+    if (!on) services.ui.setMode('aquarium', this.floorIndex);
+    this.mode = 'view';
+    this.drawMarkers();
+    this.vignette?.destroy();
+    this.vignette = undefined;
+    const cam = this.cameras.main;
+    this.tweens.add({ targets: cam, scrollY: on ? cam.scrollY + 8 : cam.scrollY - 8, duration: 600, ease: 'Sine.easeInOut' });
+    if (on) {
+      const g = this.add.graphics().setDepth(30);
+      for (let i = 0; i < 12; i++) {
+        g.fillStyle(0x0a0820, 0.05 * (12 - i) / 3);
+        g.fillRect(-20 + i, -20 + i, W + 40 - i * 2, 1).fillRect(-20 + i, H + 20 - i, W + 40 - i * 2, 1);
+      }
+      g.fillStyle(0x0a0820, 0.35).fillRect(-20, -20, W + 40, RECT.y - 2);
+      g.fillStyle(0x0a0820, 0.35).fillRect(-20, RECT.y + RECT.h + 2, W + 40, 120);
+      this.vignette = g;
+    }
+  }
+
+  /** Photo souvenir : capture de l'aquarium, agrandie pour rester nette. */
+  photo(): void {
+    services.audio.play('star');
+    this.cameras.main.flash(250, 255, 255, 255);
+    this.time.delayedCall(260, () => {
+      this.game.renderer.snapshot((image) => {
+        const img = image as HTMLImageElement;
+        const scale = 4;
+        const c = document.createElement('canvas');
+        c.width = img.width * scale;
+        c.height = img.height * scale;
+        const ctx = c.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const a = document.createElement('a');
+        a.href = c.toDataURL('image/png');
+        a.download = `aquachill-${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
+        services.sim.progress('photo');
+      });
+    });
+  }
 
   /** Nourrir les poissons (petite pause entre deux repas). */
   feed(): boolean {
@@ -84,6 +136,7 @@ export class AquariumScene extends Phaser.Scene {
     this.lastFeed = this.time.now;
     services.audio.play('bubble');
     this.tank.feed();
+    services.sim.feedFloor(this.floorIndex);
     return true;
   }
 
@@ -150,11 +203,24 @@ export class AquariumScene extends Phaser.Scene {
     }
     const fish = this.tank.fishAt(x, y, 8);
     if (fish) {
-      services.audio.play('bubble');
-      if (services.sim.state.toIdentify.includes(fish.uid)) services.ui.openIdentify(fish.uid);
-      else services.ui.openSpeciesSheet(fish.species);
+      if (services.sim.state.toIdentify.includes(fish.uid)) {
+        services.audio.play('bubble');
+        services.ui.openIdentify(fish.uid);
+        return;
+      }
+      // un câlin ! (un 2e toucher rapide ouvre sa fiche)
+      if (this.lastPetUid === fish.uid && this.time.now - this.lastPetAt < 600) {
+        services.ui.openFishCard(fish.uid);
+        return;
+      }
+      this.lastPetUid = fish.uid;
+      this.lastPetAt = this.time.now;
+      const gained = services.sim.petFish(fish.uid);
+      services.audio.play(gained ? 'star' : 'bubble');
+      this.tank.petReaction(fish.uid, gained);
       return;
     }
+    this.tank.lure(x, y);
     this.scrub(x, y);
   }
 

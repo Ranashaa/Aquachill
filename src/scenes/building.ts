@@ -380,10 +380,10 @@ export function drawRoom(p: Painter, top: number, biome: BiomeId, night: number)
 
 // ------------------------------------------------------------------------ hall
 
-export function drawLobby(p: Painter, night: number): void {
+export function drawLobby(p: Painter, night: number, name: string, subDocked: boolean): void {
   const top = -LOBBY_H;
   drawShaft(p, top, LOBBY_H, 'RDC');
-  drawBanner(p, top, 'ACCUEIL', BANNER_COLORS.lobby, '#ffe08a');
+  drawBanner(p, top, `ACCUEIL · ${name}`, BANNER_COLORS.lobby, '#ffe08a');
   const g = p.g(1);
   // papier peint doré à motif damassé, soubassement en marbre
   rect(g, 0xe8b86a, ROOM_X0, top + 11, ROOM_W, LOBBY_H - 23);
@@ -424,6 +424,11 @@ export function drawLobby(p: Painter, night: number): void {
   g.fillStyle(0x1a4a70, 0.7);
   for (const [fx, fy] of [[ax + 20, ay + 34], [ax + 44, ay + 26], [ax + 54, ay + 44]]) {
     g.fillRect(fx, fy, 6, 2).fillRect(fx - 2, fy - 1, 2, 4).fillRect(fx + 1, fy - 1, 3, 1);
+  }
+  // le petit sous-marin amarré derrière la baie
+  if (subDocked) {
+    const sub = p.img(ax + aw / 2, ay + ah - 16, 'sub', 2);
+    p.scene.tweens.add({ targets: sub, y: sub.y - 2, yoyo: true, repeat: -1, duration: 1400, ease: 'Sine.easeInOut' });
   }
   // colonnes
   for (const cx of [ROOM_X0 + 4, 106, 197]) {
@@ -551,6 +556,7 @@ export function drawBuildSlot(p: Painter, top: number, info: BuildSlotInfo, nigh
 export interface RoofInfo {
   /** Texte du grand panneau (prix du prochain étage) ou null pour l'enseigne. */
   price: number | null;
+  name: string;
   canBuild: boolean;
 }
 
@@ -608,7 +614,7 @@ export function drawRoof(p: Painter, top: number, info: RoofInfo, night: number)
   } else {
     box(g, 0xff7a5a, sx, sy + 4, sw, 25);
     rect(g, 0xffa080, sx + 2, sy + 6, sw - 4, 1);
-    p.text(sx + sw / 2, sy + 12, 'AQUACHILL', { color: '#ffffff', shadow: '#a0402a', depth: 4, ox: 0.5 });
+    p.text(sx + sw / 2, sy + 12, info.name, { color: '#ffffff', shadow: '#a0402a', depth: 4, ox: 0.5 });
     if (night > 0.3) p.glow(sx + sw / 2, sy + 16, 40, '#ffb090', 3);
   }
   // antenne clignotante
