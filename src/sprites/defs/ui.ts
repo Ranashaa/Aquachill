@@ -54,6 +54,43 @@ export const UI_SPRITES: Record<string, SpriteDef> = {
       '...b...',
     ],
   },
+  book: {
+    palette: { k: '#3a3656', W: '#ffffff', b: '#9fb8e8', r: '#ff8a5c' },
+    rows: [
+      '.kkk.kkk.',
+      'kWWWkWWWk',
+      'kWbbkbbWk',
+      'kWWWkWWWk',
+      'kWbbkbbWk',
+      'kWWWkWWWk',
+      'kkkkrkkkk',
+      '....r....',
+    ],
+  },
+  gear: {
+    palette: { k: '#3a3656', g: '#8a86a8' },
+    rows: ['..k.k..', '.kkkkk.', 'kkggkkk', '.kg.gk.', 'kkkgkkk', '.kkkkk.', '..k.k..'],
+  },
+  thermo: {
+    palette: { k: '#3a3656', w: '#ffffff', r: '#ff5a5a' },
+    rows: ['..k..', '.kwk.', '.kwk.', '.krk.', '.krk.', '.krk.', 'krrrk', 'krrrk', '.kkk.'],
+  },
+  plant: {
+    palette: { g: '#5faf4a', G: '#3f8f3a', k: '#c8653a' },
+    rows: ['...g...', '.g.g.g.', '.gGgG..', '..gGg.g', 'g..G.gg', '.gGGg..', '.kkkkk.', '..kkk..'],
+  },
+  fishicon: {
+    palette: { o: '#ff7b1c', w: '#fff8ee', k: '#3a3656' },
+    rows: ['....ooo..', 'o..owoooo', 'oooowooko', 'o..owoooo', '....ooo..'],
+  },
+  speaker: {
+    palette: { k: '#3a3656' },
+    rows: ['...k....', '..kk..k.', 'kkkk.k..', 'kkkk.k.k', 'kkkk.k..', '..kk..k.', '...k....'],
+  },
+  mute: {
+    palette: { k: '#3a3656', r: '#e84a5f' },
+    rows: ['...k....', '..kk....', 'kkkk.r.r', 'kkkk..r.', 'kkkk.r.r', '..kk....', '...k....'],
+  },
   crane: {
     palette: { y: '#ffc23a', k: '#3a3656', g: '#8a8a94' },
     rows: [
