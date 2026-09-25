@@ -7,6 +7,8 @@ import { FISH_SPRITES } from './defs/fish';
 import { personFrames, STAR_SPECS, visitorLooks } from './defs/people';
 import { ROOM_SPRITES } from './defs/room';
 import { UI_SPRITES } from './defs/ui';
+import { VARIANTS } from '../data/variants';
+import type { FishInstance } from '../state/GameState';
 import { drawText, fontHeight, measureText, type FontId } from './font';
 import {
   defToCanvas, fishSecondFrame, registerDef, registerFrames, registerSilhouette, type SpriteDef,
@@ -27,6 +29,8 @@ function swayFrame(def: SpriteDef): SpriteDef {
 }
 
 export const fishKey = (id: SpeciesId) => `fish-${id}`;
+/** Texture d'un individu (variante rare comprise). */
+export const fishTexture = (f: Pick<FishInstance, 'species' | 'variant'>) => `fish-${f.species}${f.variant ? '-v' : ''}`;
 export const decorKey = (id: DecorId) => `decor-${id}`;
 export const visitorKey = (look: number) => `visitor-${look}`;
 export const starKey = (id: StarId) => `star-${id}`;
@@ -37,6 +41,9 @@ export function generateTextures(textures: Phaser.Textures.TextureManager): void
     const key = fishKey(id as SpeciesId);
     registerDef(textures, key, def, fishSecondFrame(def));
     registerSilhouette(key, def, '#3a3656');
+    const v = VARIANTS[id as SpeciesId];
+    const vdef = { ...def, palette: { ...def.palette, ...v.palette } };
+    registerDef(textures, `${key}-v`, vdef, fishSecondFrame(vdef));
   }
   for (const [id, def] of Object.entries(DECOR_SPRITES)) {
     const frames = SWAYING.has(id as DecorId) ? [def, swayFrame(def)] : [def];

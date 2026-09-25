@@ -382,3 +382,72 @@ a { color: #2a7fb8; }
 .star-card b { font-size: calc(var(--px) * 5.5); }
 .star-card .lock { font-size: calc(var(--px) * 4.5); color: #b07a2a; }
 .card .tag.new { background: var(--accent); }
+
+/* ------------------------------------------------------ barre d'outils */
+
+.tool {
+  position: relative;
+  font: inherit;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: calc(var(--px) * 1) solid rgba(255, 255, 255, 0.15);
+  border-radius: calc(var(--px) * 3);
+  min-width: calc(var(--px) * 27);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 1);
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--px) * 1);
+  font-size: calc(var(--px) * 4.5);
+  cursor: pointer;
+}
+.tool:active { transform: translateY(calc(var(--px) * 0.5)); }
+.tool.active { background: #ff8a5c; border-color: #ffc0a0; }
+.tool img { height: calc(var(--px) * 8); width: auto; }
+.tool .badge { top: calc(var(--px) * -2); right: calc(var(--px) * -2); }
+
+/* --------------------------------------------------------------- mode zen */
+
+#ui.zen .hud-top { display: none; }
+#ui.zen .hud-bottom { background: transparent; border: none; box-shadow: none; }
+#ui.zen .toasts { display: none; }
+
+/* ---------------------------------------------------- éléments divers */
+
+.name-input {
+  font: inherit; color: var(--ink); flex: 1; min-width: 0;
+  background: #fff;
+  border: calc(var(--px) * 1) solid var(--line);
+  border-radius: calc(var(--px) * 2);
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 2);
+  user-select: text; -webkit-user-select: text;
+}
+.hearts span { color: #d8d0e0; font-size: calc(var(--px) * 7); }
+.hearts span.on { color: #ff5a7a; }
+.hearts.small span { font-size: calc(var(--px) * 5); }
+.fish-row { cursor: pointer; background: #fff; border: calc(var(--px) * 1) solid var(--paper-2); border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 1.5); }
+.fish-thumb { width: calc(var(--px) * 26); height: calc(var(--px) * 16); display: flex; align-items: center; justify-content: center; }
+.tag-inline { background: var(--accent); color: #fff; border-radius: calc(var(--px) * 2); padding: 0 calc(var(--px) * 1.5); margin-left: calc(var(--px) * 2); font-size: calc(var(--px) * 4.5); }
+.mission { background: #fff; border: calc(var(--px) * 1) solid var(--line); border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 3); margin-bottom: calc(var(--px) * 2.5); display: flex; flex-direction: column; gap: calc(var(--px) * 1.5); }
+.dest { display: flex; gap: calc(var(--px) * 2); align-items: center; background: #fff; border: calc(var(--px) * 1) solid var(--line); border-radius: calc(var(--px) * 3); padding: calc(var(--px) * 3); margin-bottom: calc(var(--px) * 2.5); }
+.dest.locked { opacity: 0.6; }
+.postcard { background: #fffaf0; border: calc(var(--px) * 1) dashed #c8a878; border-radius: calc(var(--px) * 2); padding: calc(var(--px) * 2.5); margin-bottom: calc(var(--px) * 2); }
+.postcard p { margin: calc(var(--px) * 1) 0 0; font-style: italic; }
+.news { border-bottom: calc(var(--px) * 1) dashed var(--paper-2); padding-bottom: calc(var(--px) * 2); }
+
+/* ---------------------------------------------------------- respiration */
+
+.breath {
+  position: absolute; inset: 0;
+  background: rgba(10, 16, 40, 0.55);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: calc(var(--px) * 10);
+  color: #fff;
+  animation: fade-in 0.6s;
+}
+.breath-circle {
+  width: calc(var(--px) * 90); height: calc(var(--px) * 90);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9), rgba(120,210,240,0.6) 40%, rgba(60,140,210,0.25) 70%);
+  box-shadow: 0 0 calc(var(--px) * 12) rgba(150, 230, 255, 0.6);
+  transform: scale(0.45);
+  transition: transform 4s ease-in-out;
+}
+.breath-label { font-size: calc(var(--px) * 9); text-shadow: 0 calc(var(--px) * 0.5) 0 #1a2040; }

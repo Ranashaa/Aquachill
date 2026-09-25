@@ -81,6 +81,9 @@ export class TowerScene extends Phaser.Scene {
       sim.events.on('identifyChanged', () => this.tanks.forEach((t) => t.refreshMarks())),
       sim.events.on('dropCollected', ({ drop, auto }) => this.animateCollect(drop, auto)),
       sim.events.on('levelUp', () => this.layout()),
+      sim.events.on('towerRenamed', () => this.layout()),
+      sim.events.on('expeditionStarted', () => this.layout()),
+      sim.events.on('expeditionDone', () => this.layout()),
     );
     let lastCanBuild = !!requirementStatus(sim.state)?.canBuild;
     this.unsub.push(sim.events.on('coins', () => {
@@ -130,9 +133,9 @@ export class TowerScene extends Phaser.Scene {
     cam.setBounds(0, top, GAME_W, this.maxScroll() + GAME_H - top);
     this.env.anchor(this.roofTop());
 
-    this.streetShade = drawStreet(p);
-    drawLobby(p, this.night);
     const sim = services.sim;
+    this.streetShade = drawStreet(p);
+    drawLobby(p, this.night, sim.state.towerName, !sim.state.expedition);
     sim.state.floors.forEach((floor, i) => {
       const t = floorTop(i);
       drawShaft(p, t, FLOOR_H, String(i + 1));
@@ -164,7 +167,7 @@ export class TowerScene extends Phaser.Scene {
       this.buildTop = t;
     }
     const buildable = status && !status.entry.comingSoon ? status : null;
-    drawRoof(p, this.roofTop(), { price: buildable ? buildable.entry.req.coins : null, canBuild: !!buildable?.canBuild }, this.night);
+    drawRoof(p, this.roofTop(), { price: buildable ? buildable.entry.req.coins : null, canBuild: !!buildable?.canBuild, name: sim.state.towerName }, this.night);
     this.applyNight();
   }
 

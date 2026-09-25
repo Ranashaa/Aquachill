@@ -9,7 +9,7 @@ const MIGRATIONS: Record<number, (data: any) => any> = {
     let n = 0;
     for (const floor of data.floors ?? []) {
       for (const fish of floor.fish ?? []) {
-        fish.name ??= FISH_NAMES[(fish.uid * 7 + n++) % FISH_NAMES.length];
+        fish.name ??= FISH_NAMES[n++ % FISH_NAMES.length];
         fish.personality ??= PERSONALITY_LIST[fish.uid % PERSONALITY_LIST.length];
         fish.friendship ??= 20;
         fish.bornAt ??= 0;

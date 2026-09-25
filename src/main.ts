@@ -26,6 +26,7 @@ const state = loadGame() ?? createNewState();
 const sim = new Sim(state);
 services.sim = sim;
 services.audio = new AudioEngine(state.settings.muted);
+const lastSeen = state.savedAt;
 const offline = sim.applyOffline();
 
 const game = new Phaser.Game({
@@ -59,14 +60,8 @@ if (!isGallery) {
         state.tutorialDone = true;
         sim.save();
       });
-    } else if (offline.seconds >= 60) {
-      const minutes = Math.round(offline.seconds / 60);
-      services.ui.toast(
-        `Pendant ton absence (${minutes} min) : +${offline.coins} pièces` +
-          (offline.arrivals ? `, ${offline.arrivals} nouveau${offline.arrivals > 1 ? 'x' : ''} poisson${offline.arrivals > 1 ? 's' : ''}` : '') +
-          '.',
-        { icon: 'coin', duration: 6000 },
-      );
+    } else if (offline.seconds >= 120) {
+      services.ui.openReturnSummary(lastSeen, offline.coins, offline.arrivals);
     }
   });
 
@@ -76,11 +71,10 @@ if (!isGallery) {
       sim.save();
       services.audio.suspend();
     } else {
+      const since = state.savedAt;
       const back = sim.applyOffline();
       services.audio.resume();
-      if (back.coins > 0 || back.arrivals > 0) {
-        services.ui.toast(`Bon retour ! +${back.coins} pièces`, { icon: 'coin' });
-      }
+      if (back.seconds >= 120 && !services.ui.isModalOpen) services.ui.openReturnSummary(since, back.coins, back.arrivals);
     }
   });
   window.addEventListener('beforeunload', saveOnUnload);

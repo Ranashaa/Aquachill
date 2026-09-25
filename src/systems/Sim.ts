@@ -46,6 +46,7 @@ export type SimEvents = {
   missionDone: Mission;
   missionsChanged: Mission[];
   news: NewsItem;
+  towerRenamed: string;
 };
 
 export interface IdentifyResult {
@@ -504,6 +505,14 @@ export class Sim {
   }
 
   // ----------------------------------------------------------------- tour
+
+  renameTower(name: string): void {
+    const clean = name.trim().slice(0, 14);
+    if (!clean) return;
+    this.state.towerName = clean;
+    this.events.emit('towerRenamed', clean);
+    this.save();
+  }
 
   buildFloor(): boolean {
     const status = requirementStatus(this.state);

@@ -47,8 +47,20 @@ Paramètres d’URL utiles pour le développement :
 - **Musique et sons** générés en WebAudio. **Sauvegarde automatique** dans le navigateur,
   avec gains (plafonnés) pendant l’absence.
 
-Prochaines étapes prévues : expéditions en sous-marin, reproduction avec variantes de
-couleur rares, nouveaux biomes.
+- **Des poissons attachants** : chacun a un prénom (modifiable), un caractère (curieux,
+  timide, gourmand, joueur, paresseux, sociable) qui change sa façon de nager, et une
+  amitié en cœurs qui grandit avec les câlins et les repas.
+- **Reproduction** : un couple d’adultes complices dans un aquarium heureux pond un œuf.
+  Il éclot, l’alevin grandit en temps réel, et parfois il porte une **couleur rare**
+  inspirée d’une vraie variété (clown noir « Darwin », scalaire doré, koï showa…).
+- **Expéditions en sous-marin** vers un lagon, le Rio Negro ou un torrent de montagne :
+  il rapporte un œuf et une carte postale pour le carnet de bord.
+- **Moments zen** : mode contemplation plein écran, respiration guidée, photos souvenirs
+  à télécharger, objectifs doux sans chrono, nouvelles de la tour et résumé au retour.
+- **Ta tour à toi** : donne-lui un nom, il s’affiche sur l’enseigne et dans le hall.
+
+Prochaines étapes possibles : nouveaux biomes (mangrove, banquise, abysses), vrais
+sprites dessinés.
 
 ## Architecture
 
