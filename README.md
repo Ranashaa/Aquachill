@@ -21,11 +21,10 @@ Paramètres d’URL utiles pour le développement :
 
 ## Contenu du MVP
 
-- **Tour scrollable** : hall d’accueil, étages récif corallien, Amazonie et bassin koï,
-  ascenseur-bulle et chantier du prochain étage.
+- **Tour scrollable** : hall d’accueil et six étages à débloquer — récif corallien,
+  Amazonie, bassin koï, mangrove, banquise et abysses —, ascenseur-bulle et chantier.
 - **Progression** : chaque étage se débloque selon le niveau de la tour (gagné grâce aux
-  visiteurs), le nombre d’espèces identifiées et un coût en pièces. Mangrove, banquise
-  et abysses sont annoncés « bientôt ».
+  visiteurs), le nombre d’espèces identifiées et un coût en pièces.
 - **Visiteurs** : ils prennent l’ascenseur, admirent les aquariums et laissent des pièces.
   Parfois, une **star** passe (Fray, Bob l’Épongeux, Capitaine Hadoque…) : touche-la pour
   un autographe. Chaque star rejoint l’**album des stars**, avec des indices pour celles
@@ -33,7 +32,7 @@ Paramètres d’URL utiles pour le développement :
 - **Une tour vivante** : bulles de pensée et photos des visiteurs, repas des poissons
   (bouton « Nourrir »), plantes qui ondulent, reflets de lumière dans l’eau, passants,
   voitures et oiseaux, cycle jour/nuit calé sur l’heure réelle (`?hour=22` pour tester).
-- **18 vraies espèces** (6 par biome), fidèles en forme, en couleurs et en motifs, chacune
+- **36 vraies espèces** (6 par biome), fidèles en forme, en couleurs et en motifs, chacune
   avec une fiche : nom commun, nom scientifique, origine, taille et anecdote, plus un lien
   Wikipédia.
 - **Attraction par le décor** : chaque espèce a ses préférences de décor et de
@@ -59,8 +58,7 @@ Paramètres d’URL utiles pour le développement :
   à télécharger, objectifs doux sans chrono, nouvelles de la tour et résumé au retour.
 - **Ta tour à toi** : donne-lui un nom, il s’affiche sur l’enseigne et dans le hall.
 
-Prochaines étapes possibles : nouveaux biomes (mangrove, banquise, abysses), vrais
-sprites dessinés.
+Prochaine étape possible : de vrais sprites dessinés à la main.
 
 ## Architecture
 

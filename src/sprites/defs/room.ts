@@ -307,6 +307,41 @@ export const ROOM_SPRITES: Record<string, SpriteDef> = {
       'oooooooooo',
     ],
   },
+  heron: outlined({
+    palette: { w: '#ffffff', W: '#dde4ea', y: '#ffc83a', k: '#2b2238' },
+    rows: [
+      '......ww..', '.....wwwy.', '.....ww..y', '......w...', '......w...', '.....w....', '....ww....',
+      '..wwww....', '.wwwwwww..', 'wwwWwwwww.', '.wwWWwwww.', '..wwwwww..', '...ww.....', '....k.k...',
+      '....k.k...', '....k.k...', '....k.k...', '....k.k...', '...kk.kk..',
+    ],
+  }),
+  seal: outlined({
+    palette: { g: '#9aa4ae', G: '#6a747e', k: '#2b2238', n: '#2b2238', l: '#c8d0d8', f: '#7a848e' },
+    rows: [
+      '............ggg...',
+      '...........ggkgg..',
+      '..........gggggnk.',
+      '...gggggggggggg...',
+      '.gggGggggGgggggg..',
+      'gggggggGggggggggg.',
+      'fggGgggggggGggggg.',
+      'ff.lllllllllllll..',
+    ],
+  }),
+  helmet: {
+    palette: { B: '#e0b048', b: '#a87a28', o, w: '#bfe8f2', c: '#3a6a8a' },
+    rows: [
+      '...oooooo...', '..oBBBBBBo..', '.oBooooooBo.', 'oBowwwwwwoBo', 'oBowccccwoBo', 'oBowccccwoBo',
+      'oBowwwwwwoBo', '.oBooooooBo.', '..oBBBBBBo..', '.oBBbBBbBBo.', 'oBBBBBBBBBBo', 'oooooooooooo',
+    ],
+  },
+  sonar: {
+    palette: { M: '#6a6a7a', k: '#0a1a12', g: '#2a8a4a', G: '#6aff8a', r: '#ff4a4a', y: '#ffd23a', o },
+    rows: [
+      'oooooooooooooo', 'oMMMMMMMMMMMMo', 'oMkkkkkkkkkkMo', 'oMkkkggggkkkMo', 'oMkkgkkkkgkkMo', 'oMkgkkGkkkgkMo',
+      'oMkgkkkGGkgkMo', 'oMkkgkkkkgkkMo', 'oMkkkggggkkkMo', 'oMkkkkkkkkkkMo', 'oMMMMMrMyMMMMo', 'oooooooooooooo',
+    ],
+  },
   bamboo,
   whale,
 };

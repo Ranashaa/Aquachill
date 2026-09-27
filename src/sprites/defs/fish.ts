@@ -270,4 +270,237 @@ export const FISH_SPRITES: Record<SpeciesId, FishSpriteDef> = {
       '......ww...ww.....',
     ],
   },
+  // ------------------------------------------------------------ Mangrove
+  // Monodactylus argenteus : losange argenté, nageoires jaunes, barre noire
+  monodactyle: {
+    tail: 2,
+    palette: { s: '#dfe6ea', y: '#ffd23a', t: '#e8e0a0', e: '#111111', k: '#2b2b30' },
+    rows: [
+      '......y.....',
+      '.....yss....',
+      '....sssss...',
+      '...sssssks..',
+      'tt.ssssskes.',
+      'ttssssssksss',
+      'tt.ssssskss.',
+      '...sssssks..',
+      '....sssss...',
+      '.....yss....',
+      '......y.....',
+    ],
+  },
+  // Periophthalmus barbarus : yeux sur le dessus, brun tacheté
+  periophtalme: {
+    tail: 2,
+    palette: { b: '#8a7a5a', B: '#5a4a30', l: '#c8b890', W: '#ffffff', k: '#111111', t: '#7a6a4a', m: '#5a4a30', f: '#6a5a3a' },
+    rows: [
+      '........WW...',
+      '........kW...',
+      't.bbbbbbbbbb.',
+      'ttbBbbBbbbbbm',
+      't.lllllllllb.',
+      '....f....f...',
+    ],
+  },
+  // Scatophagus argus : rond, bronze-vert à pois noirs
+  scat: {
+    tail: 1,
+    palette: { g: '#9aa060', G: '#3a3a2a', t: '#b8b070', e: '#111111' },
+    rows: [
+      '....ggg....',
+      '..gggGgg...',
+      '.gGggggGg..',
+      'tgggGgggGe.',
+      'ttgGgggGggg',
+      'tggggGgggg.',
+      '.gGgggGgg..',
+      '..ggGggg...',
+      '....ggg....',
+    ],
+  },
+  // Brachygobius doriae : bandes jaunes et noires
+  gobie: {
+    tail: 1,
+    palette: { y: '#ffd23a', k: '#2a2420', e: '#ffffff' },
+    rows: ['..yykk..', 'kkyykkye', 'kkyykkyy', '..yykk..'],
+  },
+  // Toxotes jaculatrix : argenté à taches noires
+  archer: {
+    tail: 2,
+    palette: { s: '#e8eef0', k: '#2b2b30', l: '#f4f4ea', t: '#c8d0d0', e: '#111111' },
+    rows: [
+      '...kk..kk....',
+      't.skksskksss.',
+      'ttssssssssses',
+      'ttsssssssssss',
+      't.llllllllll.',
+      '....l...l....',
+    ],
+  },
+  // Lates calcarifer : grand, argenté, œil orangé
+  barramundi: {
+    tail: 3,
+    palette: { g: '#a8b0b0', l: '#e0e4e0', t: '#90989a', r: '#e8783a' },
+    rows: [
+      '.......gggg.......',
+      't...ggggggggggg...',
+      'tt.gggggggggggggr.',
+      'tttggggggggggggggg',
+      'tt.lllllllllllllll',
+      't...lllllllllll...',
+      '......l....l......',
+    ],
+  },
+
+  // ------------------------------------------------------------ Banquise
+  // Boreogadus saida : fine, argent-brun, barbillon
+  saida: {
+    tail: 2,
+    palette: { s: '#9aa0a0', o: '#8a9090', l: '#e0e4e8', t: '#8a9090', e: '#111111', b: '#c8c0a0' },
+    rows: [
+      '.....ooo......',
+      't.ssssssssss..',
+      'ttssssssssssse',
+      't.lllllllllll.',
+      '....ll...ll..b',
+    ],
+  },
+  // Myoxocephalus quadricornis : grosse tête cornue, marbré
+  chabot: {
+    tail: 2,
+    palette: { m: '#7a6a5a', M: '#4a3a2a', l: '#c8b8a0', h: '#5a4a3a', f: '#9a8a6a', t: '#6a5a4a', e: '#e8d060' },
+    rows: [
+      '........h.h..',
+      '.....ffmmmm..',
+      't.mmMmmMmmmmm',
+      'ttmMmmMmmmeMm',
+      't.lllllllllll',
+      '...f...ff....',
+    ],
+  },
+  // Cyclopterus lumpus : rond, bosselé, ventre orange
+  lompe: {
+    tail: 1,
+    palette: { g: '#6a9a5a', G: '#4a7a3a', o: '#ff8a3a', t: '#5a8a4a', e: '#111111' },
+    rows: [
+      '...gGgGg...',
+      '..gggGggg..',
+      '.gGgggggGg.',
+      'tggGgggggeg',
+      'tgggggGgggg',
+      '.gooooooog.',
+      '..ooooooo..',
+      '...ooooo...',
+      '....ooo....',
+    ],
+  },
+  // Salvelinus alpinus : dos sombre moucheté, ventre rouge
+  omble: {
+    tail: 2,
+    palette: { g: '#4a6a4a', w: '#e8e0c8', r: '#e8603a', t: '#4a6a4a', e: '#111111' },
+    rows: [
+      '......gggg......',
+      't..gggwgggwgg...',
+      'ttgggggwggggggge',
+      'ttrrrrrrrrrrrrrr',
+      't..rrrrrrrrrrr..',
+      '....w.....w.....',
+    ],
+  },
+  // Anarhichas lupus : grosse tête, dents, rayures sombres
+  loup: {
+    tail: 2,
+    palette: { b: '#7a8a9a', k: '#3a4a5a', l: '#b8c4cc', w: '#ffffff', m: '#3a4a5a', t: '#6a7a8a', e: '#111111' },
+    rows: [
+      '...kkkkkkkkkk.....',
+      't.bbkbbbkbbbkbbb..',
+      'ttbbkbbbkbbbkbbeb.',
+      'ttbbkbbbkbbbkbbbwm',
+      't.llllllllllllllw.',
+      '...kkkkkkkkkkk....',
+    ],
+  },
+  // Chaenocephalus aceratus : pâle, translucide, museau de crocodile
+  poisson_glace: {
+    tail: 2,
+    palette: { w: '#e8f4f8', l: '#c8e0ec', k: '#2b3a4a', t: '#d8ecf4', e: '#111111' },
+    rows: [
+      '.....kkkk........',
+      't..wwwwwwwww.....',
+      'ttwwwwwwwwwwwewww',
+      'ttlllllllllllllll',
+      't..llllllllll....',
+      '.....k...........',
+    ],
+  },
+
+  // ------------------------------------------------------------- Abysses
+  // Myctophum punctatum : sombre, photophores
+  lanterne: {
+    tail: 2,
+    palette: { k: '#3a4a6a', W: '#bfe0ff', y: '#7af0ff', t: '#2a3a5a' },
+    rows: ['....kkk....', 't.kkkkkkkk.', 'ttkkkkkkkWk', 't.kykykykyk', '...kkkkk...'],
+  },
+  // Argyropelecus aculeatus : argentée, yeux vers le haut, lumières ventrales
+  hachette_abyssale: {
+    tail: 2,
+    palette: { s: '#c8d4e0', e: '#e0f4ff', y: '#7af0ff', t: '#8a9ab0' },
+    rows: ['......ee.', 't.ssssss.', 'ttsssssss', 't.sssssss', '..ssssss.', '...sssss.', '...yyyyy.', '....yyy..'],
+  },
+  // Chauliodus sloani : long, sombre, crocs
+  vipere: {
+    tail: 2,
+    palette: { b: '#2a3a5a', W: '#bfe0ff', w: '#ffffff', y: '#7af0ff', k: '#4a5a7a', t: '#2a3a5a' },
+    rows: [
+      '......k...........',
+      '......kk..........',
+      't.bbbbbbbbbbbbbbb.',
+      'ttbbbbbbbbbbbbbWbw',
+      't.byybyybyybyybbbw',
+      '...............w.w',
+    ],
+  },
+  // Macropinna microstoma : dôme transparent, yeux verts
+  barreleye: {
+    tail: 2,
+    palette: { c: '#bfe8f0', G: '#6af06a', b: '#3a3a4a', m: '#5a5a6a', f: '#5a5a6a', t: '#3a3a4a' },
+    rows: [
+      '......cccc..',
+      '.....cGccGc.',
+      '.....cGccGc.',
+      't.bbbbbbbbbc',
+      'ttbbbbbbbbbm',
+      't.bbbbbbbbb.',
+      '...f....f...',
+    ],
+  },
+  // Eurypharynx pelecanoides : bouche géante, queue lumineuse
+  gulper: {
+    tail: 3,
+    palette: { p: '#ff6ab0', k: '#1e1e2a', e: '#bfe0ff', o: '#6a2a4a' },
+    rows: [
+      '..............kk....',
+      '.............kkkkk..',
+      'pk.kkkkkkkkkkkkekkkk',
+      '.kk..........kkoooo.',
+      '..............kkkkk.',
+    ],
+  },
+  // Melanocetus johnsonii : ronde, noire, lanterne
+  baudroie: {
+    tail: 1,
+    palette: { k: '#2a2632', y: '#bfffe0', e: '#8a8a9a', w: '#ffffff', t: '#2a2632' },
+    rows: [
+      '.......yy....',
+      '........k....',
+      '.........k...',
+      '....kkkkkk...',
+      '..kkkkkkkkkk.',
+      't.kkkkkkkekkk',
+      'tkkkkkkkkwwwk',
+      't.kkkkkkkkkkk',
+      '..kkkkkkkkk..',
+      '....kkkkk....',
+    ],
+  },
 };

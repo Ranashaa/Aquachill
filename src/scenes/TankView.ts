@@ -191,7 +191,7 @@ export class TankView {
       .setOrigin(0)
       .setDepth(depth + 2)
       .setBlendMode(Phaser.BlendModes.ADD)
-      .setAlpha(detailed ? 0.32 : 0.4);
+      .setAlpha(this.floor.biome === 'abyss' ? 0.08 : detailed ? 0.32 : 0.4);
     this.refresh();
   }
 
@@ -424,6 +424,23 @@ export class TankView {
 
   spawnBubble(x?: number): void {
     const r = this.rect;
+    if (this.floor.biome === 'abyss') {
+      // neige marine : des miettes de vie qui descendent lentement de la surface
+      const sx = r.x + 4 + Math.random() * (r.w - 8);
+      const glow = Math.random() < 0.25;
+      const obj = this.scene.add.rectangle(sx, r.y + 1, 1, 1, glow ? 0x7af0ff : 0xc8d4f0, glow ? 0.9 : 0.5)
+        .setOrigin(0).setDepth(this.depth + 4);
+      this.fx.push(obj);
+      this.scene.tweens.add({
+        targets: obj,
+        y: r.y + r.h - this.sand,
+        x: sx + (Math.random() - 0.5) * 8,
+        alpha: glow ? 0.2 : 0.3,
+        duration: (r.h / 4) * 1000,
+        onComplete: () => this.removeFx(obj),
+      });
+      return;
+    }
     const bx = x ?? r.x + 6 + Math.random() * (r.w - 12);
     const by = r.y + r.h - this.sand;
     const obj = this.detailed

@@ -4,6 +4,7 @@ export type DecorTag =
   | 'rock' | 'anemone' | 'coral' | 'seagrass' | 'gorgonian'
   | 'rocks' | 'sand' | 'plants' | 'tallplants' | 'floating' | 'roots' | 'leaves' | 'cave'
   | 'mud' | 'pebbles' | 'mussel' | 'lily' | 'lantern' | 'flow'
+  | 'oyster' | 'branch' | 'ice' | 'floe' | 'kelp' | 'vent' | 'glow' | 'wreck' | 'bones'
   | 'fun';
 
 /** Noms lisibles des tags, utilisés dans les fiches du carnet. */
@@ -27,13 +28,25 @@ export const TAG_NAMES: Record<DecorTag, string> = {
   lily: 'nénuphar',
   lantern: 'lanterne de pierre',
   flow: 'courant d’eau',
+  oyster: 'huîtres',
+  branch: 'branches au-dessus de l’eau',
+  ice: 'bloc de glace',
+  floe: 'glace flottante',
+  kelp: 'forêt de kelp',
+  vent: 'cheminée hydrothermale',
+  glow: 'lumière vivante',
+  wreck: 'épave',
+  bones: 'squelette de baleine',
   fun: 'objet décoratif',
 };
 
 export type DecorId =
   | 'live_rock' | 'anemone' | 'branch_coral' | 'brain_coral' | 'seagrass' | 'gorgonian' | 'giant_clam' | 'treasure'
   | 'stones' | 'sand_bank' | 'sword_plant' | 'vallisneria' | 'floating' | 'driftwood' | 'leaves' | 'slate_cave'
-  | 'mud' | 'river_pebbles' | 'mussel' | 'lily' | 'iris' | 'lantern' | 'shishi' | 'bridge';
+  | 'mud' | 'river_pebbles' | 'mussel' | 'lily' | 'iris' | 'lantern' | 'shishi' | 'bridge'
+  | 'mangrove_roots' | 'mudflat' | 'oyster_bed' | 'overhang' | 'propagules' | 'brackish_stones' | 'fiddler_crab' | 'old_pirogue'
+  | 'ice_block' | 'ice_floe' | 'kelp' | 'cold_stones' | 'ice_cave' | 'urchins' | 'old_anchor'
+  | 'vent' | 'glow_coral' | 'abyss_rocks' | 'wreck' | 'whale_fall' | 'sea_pen' | 'glass_sponge';
 
 export interface DecorItem {
   id: DecorId;
@@ -102,6 +115,56 @@ export const DECOR: Record<DecorId, DecorItem> = {
     blurb: 'Une fontaine de bambou qui fait « toc » en basculant.' }),
   bridge: d({ id: 'bridge', name: 'Petit pont rouge', biome: 'koi', price: 150, tags: ['fun'], anchor: 'bottom',
     blurb: 'Un mini pont laqué, pour la photo.' }),
+
+  // --------------------------------------------------------------- Mangrove
+  mangrove_roots: d({ id: 'mangrove_roots', name: 'Racines de palétuvier', biome: 'mangrove', price: 120, tags: ['roots'], anchor: 'bottom',
+    blurb: 'Des racines-échasses qui protègent les alevins des prédateurs.' }),
+  mudflat: d({ id: 'mudflat', name: 'Vasière', biome: 'mangrove', price: 80, tags: ['mud'], anchor: 'bottom',
+    blurb: 'Une vase molle criblée de petits terriers de crabes.' }),
+  oyster_bed: d({ id: 'oyster_bed', name: 'Banc d’huîtres', biome: 'mangrove', price: 110, tags: ['oyster'], anchor: 'bottom',
+    blurb: 'Les huîtres de palétuvier filtrent et clarifient l’eau.' }),
+  overhang: d({ id: 'overhang', name: 'Branche basse', biome: 'mangrove', price: 130, tags: ['branch'], anchor: 'surface',
+    blurb: 'Une branche au ras de l’eau, où se posent les insectes.' }),
+  propagules: d({ id: 'propagules', name: 'Jeunes palétuviers', biome: 'mangrove', price: 90, tags: ['plants'], anchor: 'bottom',
+    blurb: 'Des graines qui germent déjà sur l’arbre avant de tomber.' }),
+  brackish_stones: d({ id: 'brackish_stones', name: 'Pierres moussues', biome: 'mangrove', price: 70, tags: ['rocks'], anchor: 'bottom',
+    blurb: 'Des pierres couvertes d’un fin tapis d’algues.' }),
+  fiddler_crab: d({ id: 'fiddler_crab', name: 'Crabe violoniste', biome: 'mangrove', price: 100, tags: ['fun'], anchor: 'bottom',
+    blurb: 'Il agite sa grosse pince comme un archet de violon.' }),
+  old_pirogue: d({ id: 'old_pirogue', name: 'Vieille pirogue', biome: 'mangrove', price: 160, tags: ['fun'], anchor: 'bottom',
+    blurb: 'Une barque oubliée, devenue un abri pour les poissons.' }),
+
+  // --------------------------------------------------------------- Banquise
+  ice_block: d({ id: 'ice_block', name: 'Bloc de glace', biome: 'ice', price: 140, tags: ['ice'], anchor: 'bottom',
+    blurb: 'Un morceau de glace bleutée, vieux de plusieurs hivers.' }),
+  ice_floe: d({ id: 'ice_floe', name: 'Glace flottante', biome: 'ice', price: 150, tags: ['floe'], anchor: 'surface',
+    blurb: 'La banquise vue d’en dessous : un plafond de glace.' }),
+  kelp: d({ id: 'kelp', name: 'Kelp', biome: 'ice', price: 110, tags: ['kelp', 'plants'], anchor: 'bottom',
+    blurb: 'Une grande algue brune, véritable forêt sous-marine.' }),
+  cold_stones: d({ id: 'cold_stones', name: 'Galets givrés', biome: 'ice', price: 90, tags: ['rocks'], anchor: 'bottom',
+    blurb: 'Des pierres froides où l’on se camoufle.' }),
+  ice_cave: d({ id: 'ice_cave', name: 'Grotte de glace', biome: 'ice', price: 180, tags: ['cave'], anchor: 'bottom',
+    blurb: 'Une cachette bleue et silencieuse.' }),
+  urchins: d({ id: 'urchins', name: 'Oursins', biome: 'ice', price: 100, tags: ['fun'], anchor: 'bottom',
+    blurb: 'Des boules de piquants qui broutent les algues.' }),
+  old_anchor: d({ id: 'old_anchor', name: 'Vieille ancre', biome: 'ice', price: 140, tags: ['fun'], anchor: 'bottom',
+    blurb: 'Perdue par un brise-glace, il y a bien longtemps.' }),
+
+  // ---------------------------------------------------------------- Abysses
+  vent: d({ id: 'vent', name: 'Cheminée hydrothermale', biome: 'abyss', price: 200, tags: ['vent'], anchor: 'bottom',
+    blurb: 'Une source d’eau chaude chargée de minéraux, oasis de vie dans le noir.' }),
+  glow_coral: d({ id: 'glow_coral', name: 'Corail luminescent', biome: 'abyss', price: 160, tags: ['glow'], anchor: 'bottom',
+    blurb: 'Des branches qui brillent d’une douce lueur bleue.' }),
+  abyss_rocks: d({ id: 'abyss_rocks', name: 'Roches volcaniques', biome: 'abyss', price: 100, tags: ['rocks'], anchor: 'bottom',
+    blurb: 'Des roches noires nées de la lave du fond des océans.' }),
+  wreck: d({ id: 'wreck', name: 'Épave', biome: 'abyss', price: 240, tags: ['wreck'], anchor: 'bottom',
+    blurb: 'La coque d’un vieux navire, couchée dans le silence.' }),
+  whale_fall: d({ id: 'whale_fall', name: 'Squelette de baleine', biome: 'abyss', price: 220, tags: ['bones'], anchor: 'bottom',
+    blurb: 'Une baleine tombée au fond nourrit la vie pendant des décennies.' }),
+  sea_pen: d({ id: 'sea_pen', name: 'Plume de mer', biome: 'abyss', price: 150, tags: ['glow', 'plants'], anchor: 'bottom',
+    blurb: 'Un cousin des coraux, en forme de plume, qui s’illumine quand on le touche.' }),
+  glass_sponge: d({ id: 'glass_sponge', name: 'Éponge de verre', biome: 'abyss', price: 180, tags: ['fun'], anchor: 'bottom',
+    blurb: 'Son squelette est fait de silice, comme du verre.' }),
 };
 
 export const DECOR_LIST = Object.values(DECOR);

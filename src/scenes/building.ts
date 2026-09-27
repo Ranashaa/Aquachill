@@ -153,7 +153,8 @@ export function drawShaft(p: Painter, top: number, h: number, label: string | nu
 
 /** Couleur du bandeau selon le type d'étage (comme les catégories de Tiny Tower). */
 export const BANNER_COLORS: Record<string, number> = {
-  reef: 0x2a8a9e, amazon: 0x3f8a3a, koi: 0xa8363a, lobby: 0x5a4a8a, build: 0x5a5670, soon: 0xc8642a,
+  reef: 0x2a8a9e, amazon: 0x3f8a3a, koi: 0xa8363a, mangrove: 0x6a7a2a, ice: 0x3a7ab8, abyss: 0x2a2a6a,
+  lobby: 0x5a4a8a, build: 0x5a5670, soon: 0xc8642a,
 };
 
 export function drawBanner(p: Painter, top: number, title: string, bg = SLAB, color = '#ffffff'): void {
@@ -189,6 +190,9 @@ const THEMES: Record<string, Theme> = {
   reef: { frame: BRASS, frameDark: BRASS_DARK, cabinet: 0x5a8aa8, lamp: 'room-lamp' },
   amazon: { frame: 0x8a5a34, frameDark: 0x5a3a22, cabinet: 0x7a5a34, lamp: 'room-stormlamp' },
   koi: { frame: 0x3a2a2a, frameDark: 0x8a2a2a, cabinet: 0x5a3a22, lamp: 'room-paperlantern' },
+  mangrove: { frame: 0x6a5a3a, frameDark: 0x4a3a22, cabinet: 0x5a6a4a, lamp: 'room-stormlamp' },
+  ice: { frame: 0xc8d4e0, frameDark: 0x8a9ab0, cabinet: 0x5a7a9a, lamp: 'room-lamp' },
+  abyss: { frame: 0x3a3a4a, frameDark: 0x1a1a2a, cabinet: 0x2a2a3a, lamp: 'room-lamp' },
 };
 
 /** Zone de mur : de y0 (plafond) à y1 (sol), puis 8 px de sol. */
@@ -286,10 +290,84 @@ function drawKoiWall(g: Phaser.GameObjects.Graphics, a: Area) {
   rect(g, 0x3a5a2a, a.x0, a.y1, w, 1);
 }
 
+/** Cabane de mangrove : planches délavées, nattes tressées, ponton. */
+function drawMangroveWall(g: Phaser.GameObjects.Graphics, a: Area) {
+  const w = a.x1 - a.x0;
+  const wains = a.y1 - 24;
+  for (let y = a.y0; y < wains; y += 6) {
+    rect(g, (y / 6) % 2 ? 0x7a9a8a : 0x6a8a7a, a.x0, y, w, 6);
+    rect(g, 0x4a6a5a, a.x0, y + 5, w, 1);
+    for (let x = a.x0 + ((y / 6) % 3) * 13; x < a.x1; x += 40) rect(g, 0x4a6a5a, x, y, 1, 5);
+  }
+  // natte tressée
+  for (let y = wains; y < a.y1; y += 4) {
+    for (let x = a.x0; x < a.x1; x += 4) {
+      const on = ((x + y) / 4) % 2 === 0;
+      rect(g, on ? 0xc8a860 : 0xa88840, x, y, 4, 4);
+      rect(g, on ? 0xe0c078 : 0x8a6a30, x, y, on ? 4 : 1, 1);
+    }
+  }
+  rect(g, INK, a.x0, wains - 1, w, 1);
+  // ponton
+  rect(g, 0x8a6a44, a.x0, a.y1, w, 8);
+  for (let x = a.x0; x < a.x1; x += 9) rect(g, 0x5a4424, x, a.y1, 1, 8);
+  rect(g, 0xa8885a, a.x0, a.y1, w, 1);
+}
+
+/** Station polaire : panneaux isolants blancs et bleus, grille métallique. */
+function drawIceWall(g: Phaser.GameObjects.Graphics, a: Area) {
+  const w = a.x1 - a.x0;
+  const wains = a.y1 - 20;
+  rect(g, 0xeef6fc, a.x0, a.y0, w, wains - a.y0);
+  for (let x = a.x0; x < a.x1; x += 24) {
+    rect(g, 0xc8dcea, x, a.y0, 1, wains - a.y0);
+    for (let y = a.y0 + 4; y < wains; y += 14) {
+      rect(g, 0xa8bcd0, x + 3, y, 1, 1);
+      rect(g, 0xa8bcd0, x + 20, y, 1, 1);
+    }
+  }
+  // flocons peints
+  for (let i = 0; i < 12; i++) {
+    const fx = a.x0 + 8 + ((i * 53) % (w - 16));
+    const fy = a.y0 + 6 + ((i * 29) % Math.max(8, wains - a.y0 - 12));
+    rect(g, 0xbfe0f4, fx - 2, fy, 5, 1);
+    rect(g, 0xbfe0f4, fx, fy - 2, 1, 5);
+  }
+  rect(g, 0x3a7ab8, a.x0, wains, w, 20);
+  for (let x = a.x0; x < a.x1; x += 12) rect(g, 0x2e6aa0, x, wains + 2, 10, 16);
+  rect(g, 0x6aa8e0, a.x0, wains, w, 1);
+  rect(g, INK, a.x0, wains - 1, w, 1);
+  // grille métallique
+  rect(g, 0x8a96a8, a.x0, a.y1, w, 8);
+  for (let x = a.x0; x < a.x1; x += 3) rect(g, 0x6a7688, x, a.y1 + 1, 1, 7);
+  rect(g, 0xb8c4d4, a.x0, a.y1, w, 1);
+}
+
+/** Poste d'observation abyssal : métal sombre riveté, hublots. */
+function drawAbyssWall(g: Phaser.GameObjects.Graphics, a: Area) {
+  const w = a.x1 - a.x0;
+  rect(g, 0x1e2440, a.x0, a.y0, w, a.y1 - a.y0);
+  for (let x = a.x0; x < a.x1; x += 20) {
+    rect(g, 0x2a3252, x, a.y0, 19, a.y1 - a.y0);
+    for (let y = a.y0 + 3; y < a.y1; y += 8) {
+      rect(g, 0x48507a, x + 2, y, 1, 1);
+      rect(g, 0x48507a, x + 16, y, 1, 1);
+    }
+  }
+  rect(g, 0x5ff0e0, a.x0, a.y1 - 18, w, 1, 0.5);
+  rect(g, 0x14182c, a.x0, a.y1 - 17, w, 17);
+  rect(g, 0x1a1e30, a.x0, a.y1, w, 8);
+  for (let x = a.x0; x < a.x1; x += 6) rect(g, 0x2a3048, x, a.y1 + 2, 4, 1);
+  rect(g, 0x3a4268, a.x0, a.y1, w, 1);
+}
+
 /** Mur et sol thématiques d'un biome sur une zone donnée. */
 export function drawThemeWall(g: Phaser.GameObjects.Graphics, biome: BiomeId, a: Area): void {
   if (biome === 'amazon') drawAmazonWall(g, a);
   else if (biome === 'koi') drawKoiWall(g, a);
+  else if (biome === 'mangrove') drawMangroveWall(g, a);
+  else if (biome === 'ice') drawIceWall(g, a);
+  else if (biome === 'abyss') drawAbyssWall(g, a);
   else drawReefWall(g, a);
 }
 
@@ -365,6 +443,31 @@ export function drawRoom(p: Painter, top: number, biome: BiomeId, night: number)
     p.floorShadow(L, top + 94, 16);
     p.floorShadow(R, top + 94, 16);
     p.img(R, top + 94, 'room-crate', 15, 0.5, 1);
+  } else if (biome === 'mangrove') {
+    p.img(L, top + 30, 'room-net', 2);
+    p.floorShadow(L, top + 94, 12);
+    const heron = p.sprite(L, top + 94, 'room-heron', 15);
+    p.scene.tweens.add({ targets: heron, scaleY: 0.96, yoyo: true, repeat: -1, duration: 2200, ease: 'Sine.easeInOut' });
+    p.floorShadow(R, top + 94, 16);
+    p.img(R, top + 94, 'room-crate', 15, 0.5, 1);
+    p.img(R, top + 30, 'room-stormlamp', 2);
+  } else if (biome === 'ice') {
+    p.img(L, top + 34, 'room-porthole', 2);
+    p.floorShadow(R - 4, top + 94, 18);
+    const seal = p.sprite(R - 4, top + 94, 'room-seal', 15);
+    p.scene.tweens.add({ targets: seal, y: seal.y - 1, yoyo: true, repeat: -1, duration: 1800, ease: 'Sine.easeInOut' });
+    p.img(R, top + 38, 'room-lifebuoy', 2);
+  } else if (biome === 'abyss') {
+    // pénombre permanente : ici, seules les lumières vivantes éclairent
+    const dark = p.scene.add.rectangle(ROOM_X0, top + 11, ROOM_W, 85, 0x05081a, 0.35).setOrigin(0).setDepth(4.4);
+    p.objs.push(dark);
+    p.img(L, top + 40, 'room-porthole', 2).setTint(0x6a7ab0);
+    p.floorShadow(L, top + 94, 14);
+    p.img(L, top + 94, 'room-helmet', 15, 0.5, 1);
+    const sonar = p.img(R, top + 44, 'room-sonar', 5);
+    p.scene.tweens.add({ targets: sonar, alpha: 0.7, yoyo: true, repeat: -1, duration: 900 });
+    const beam = p.scene.add.image(R, top + 44, glowTexture(p.scene.textures, 14, '#6aff8a')).setBlendMode(Phaser.BlendModes.ADD).setDepth(5).setAlpha(0.35);
+    p.objs.push(beam);
   } else {
     p.img(L, top + 16, 'room-scroll', 2, 0.5, 0);
     p.floorShadow(L, top + 94, 20);

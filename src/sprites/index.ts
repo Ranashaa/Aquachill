@@ -15,7 +15,7 @@ import {
 } from './SpriteFactory';
 
 /** Décors végétaux qui ondulent doucement dans le courant. */
-export const SWAYING = new Set<DecorId>(['anemone', 'seagrass', 'gorgonian', 'vallisneria', 'sword_plant', 'iris', 'floating']);
+export const SWAYING = new Set<DecorId>(['anemone', 'seagrass', 'gorgonian', 'vallisneria', 'sword_plant', 'iris', 'floating', 'kelp', 'propagules', 'glow_coral', 'sea_pen']);
 
 /** 2e image d'ondulation : le haut de la plante se décale d'un pixel. */
 function swayFrame(def: SpriteDef): SpriteDef {

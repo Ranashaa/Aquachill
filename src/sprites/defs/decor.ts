@@ -377,4 +377,199 @@ export const DECOR_SPRITES: Record<DecorId, SpriteDef> = {
       'ss..................ss',
     ],
   },
+  // ------------------------------------------------------------ Mangrove
+  mangrove_roots: {
+    palette: { W: '#6a4a2a', w: '#8a6a44' },
+    rows: [
+      '........WW........',
+      '........Ww........',
+      '.......wWWw.......',
+      '......wW..Ww......',
+      '.....wW....Ww.....',
+      '....wW..ww..Ww....',
+      '...wW..wWWw..Ww...',
+      '..wW..wW..Ww..Ww..',
+      '.wW..wW....Ww..Ww.',
+      'wW..wW......Ww..Ww',
+      'W..wW........Ww..W',
+      '..wW..........Ww..',
+      '.wW............Ww.',
+      'wW..............Ww',
+    ],
+  },
+  mudflat: {
+    palette: { m: '#6a5a48', M: '#8a7a60', o: '#2b2238' },
+    rows: ['.....mmmmmm.......', '..mmmMMoMMMmmm....', '.mMMoMmMMMMoMMmmm.', 'mMMMMMMMMMMmMMMMMm'],
+  },
+  oyster_bed: {
+    palette: { o: '#4a4a52', G: '#8a8a90', g: '#a8a8b0', w: '#f0ece8' },
+    rows: ['...oo....oo...', '.ooGGoo.oGGoo.', 'oGGgGGGoGGgGGo', 'oGGGGGGGGGGGGo', '.oGGwGGGGGwGo.', '..oooooooooo..'],
+  },
+  overhang: {
+    palette: { b: '#6a4a2a', g: '#5faf4a', G: '#3f8f3a', i: '#2b2238' },
+    rows: [
+      'bbbbbbbbbbbbbbbb....',
+      '..gg..gg.bbbbb.gg...',
+      '.gGgg.gGg...bbbGg...',
+      '..gg...g......bbi...',
+      '...............b....',
+    ],
+  },
+  propagules: {
+    palette: { b: '#6a8a3a', g: '#6fcf5a', G: '#3f9f3a', m: '#6a5a48' },
+    rows: [
+      '..g.....g...', '.gGg...gGg..', '..g.....g.g.', '..b.....bgGg', '..b.....b.g.', '..b.....b.b.', '..b..g..b.b.',
+      '..b.gGg.b.b.', '..b..g..b.b.', '..b..b..b.b.', '..b..b..b.b.', '..b..b..b.b.', '.mmmmmmmmmmm', 'mmmmmmmmmmmm',
+    ],
+  },
+  brackish_stones: {
+    palette: { G: '#8a9a80', g: '#5a6a50', w: '#8fcf6a' },
+    rows: ['...gg.........', '..gwGg...gg...', '.gGGGGg.gwGg..', 'gGGGGGGgGGGGg.', 'gGGGGGGgGGGGGg', '.ggggggggggggg'],
+  },
+  fiddler_crab: {
+    palette: { R: '#e8603a', C: '#5a7ab0', o: '#2b2238' },
+    rows: ['..o...o..', 'RR.ooooo.', 'RRooCCCoo', '..oCCCCCo', '..o.o.o.o'],
+  },
+  old_pirogue: {
+    palette: { W: '#9a6a3a', w: '#7a4a2a', o: '#2b2238', m: '#6a5a48' },
+    rows: [
+      'o..................o',
+      'oo................oo',
+      '.oWWWWWWWWWWWWWWWWo.',
+      '.owwwwwwwwwwwwwwwwo.',
+      '..oWWWWWWWWWWWWWWo..',
+      '...oooooooooooooo...',
+      '....mmm......mmm....',
+    ],
+  },
+
+  // ------------------------------------------------------------ Banquise
+  ice_block: {
+    palette: { W: '#eaf6fc', w: '#ffffff', B: '#bfe0f0', o: '#5a8ab0' },
+    rows: [
+      '..oooooooo....',
+      '.oWWWWWWWWo...',
+      'oWwWWWWWWWWo..',
+      'oWwBBWWWWWWBo.',
+      'oWBBBWWWWWBBBo',
+      'oWWBWWWWWWBBBo',
+      'oWWWWWWWBBBBWo',
+      'oBWWWWWWWBBWWo',
+      'oBBWWWWWWWWWWo',
+      'oBBBWWWWWWWBBo',
+      '.oBBBBBBBBBBo.',
+      '..oooooooooo..',
+    ],
+  },
+  ice_floe: {
+    palette: { W: '#eaf6fc', w: '#ffffff', B: '#bfe0f0', o: '#5a8ab0' },
+    rows: [
+      'oooooooooooooooooooo',
+      'oWWWWwWWWWWWWWwWWWWo',
+      'oBBWWWWWWWWBBWWWWBBo',
+      '.oBBBBBBBBBBBBBBBBo.',
+      '..oooooooooooooooo..',
+    ],
+  },
+  kelp: {
+    palette: { k: '#b8a040', K: '#7a6a2a', s: '#8a8478' },
+    rows: [
+      '...k......', '..kK...k..', '..kK..kK..', '...K..kK..', '..kK...K..', '..kK..kK..', '...K..kK.k',
+      '..kK...KkK', '..kK..kK.K', '...K..kK.K', '..kK...K.K', '..kK..kK.K', '...K..kKkK', '..kK...K.K',
+      '...K..kK.K', '...K...K.K', '...K..KK.K', '...KK.K.KK', '....KKK.K.', '.....KKK..', '...ssssss.', '..ssssssss',
+    ],
+  },
+  cold_stones: {
+    palette: { G: '#9aa8b8', g: '#6a7888', w: '#ffffff' },
+    rows: ['...gg.........', '..gwGg...gg...', '.gGGGGg.gwGg..', 'gGGGGGGgGGGGg.', 'gGGGGGGgGGGGGg', '.ggggggggggggg'],
+  },
+  ice_cave: {
+    palette: { s: '#6a8ab0', S: '#bfe0f0', k: '#1a2a40' },
+    rows: [
+      '...ssssssssss...',
+      '..sSSSSSSSSSSs..',
+      '.sSSSSSSSSSSSSs.',
+      'ssssssssssssssss',
+      '.sSkkkkkkkkkkSs.',
+      '.sSkkkkkkkkkkSs.',
+      '.sSkkkkkkkkkkSs.',
+      '.sSkkkkkkkkkkSs.',
+      'ssSSkkkkkkkkSSss',
+      'ssssssssssssssss',
+    ],
+  },
+  urchins: {
+    palette: { k: '#3a2a4a', p: '#8a4a9a' },
+    rows: ['..k.k..k.k..', '.kkpkk.kkpkk', 'kkpppkkkpppk', '.kpppk.kpppk', '..kkk...kkk.'],
+  },
+  old_anchor: {
+    palette: { A: '#6a6a7a', o: '#4a4a5a', r: '#a8583a' },
+    rows: [
+      '....ooo.....', '....oAo.....', '....ooo.....', '..AAAAAAA...', '.....A......', '.....A......', '.....A......',
+      '.....A......', '.....A......', 'A....A....A.', 'AA...A...AA.', '.AA..A..AA..', '..AAAAAAA...', '...rrrrr....',
+    ],
+  },
+
+  // ------------------------------------------------------------- Abysses
+  vent: {
+    palette: { g: '#5a5a6a', G: '#8a8a9a', o: '#1a1a22', y: '#ffd86a', R: '#c8502a', K: '#3a3440' },
+    rows: [
+      '....gggg....', '...gGGGGg...', '....gGGg....', '....oyyo....', '...oRyyRo...', '...oRRRRo...', '..oRKRRKRo..',
+      '..oKKRKKKo..', '..oKKKKRKo..', '.oKKRKKKKKo.', '.oKKKKKRKKo.', '.oKRKKKKKKo.', 'oKKKKKRKKKKo', 'oKKRKKKKKRKo',
+      'oKKKKKKKKKKo', 'oooooooooooo',
+    ],
+  },
+  glow_coral: {
+    palette: { c: '#7af0ff', p: '#ff7ae0', b: '#3a6a8a', r: '#2a2a3a' },
+    rows: [
+      '..c....p....', '..b..c.b..p.', '.bb..b.bb.b.', '..b..bb.b.bb', '..bb.b..bbb.', '...b.b..b...',
+      '...bbb.bb...', '....bb.b....', '....bbbb....', '.....bb.....', '....rrrr....', '...rrrrrr...',
+    ],
+  },
+  abyss_rocks: {
+    palette: { G: '#3a3a4a', g: '#2a2a36', w: '#5a5a6a' },
+    rows: ['...gg.........', '..gwGg...gg...', '.gGGGGg.gwGg..', 'gGGGGGGgGGGGg.', 'gGGGGGGgGGGGGg', '.ggggggggggggg'],
+  },
+  wreck: {
+    palette: { W: '#5a4a3a', w: '#7a6a4a', k: '#1a1a22', o: '#2a2226', r: '#3a3a4a' },
+    rows: [
+      '.......o............',
+      '.......o............',
+      '.......o......o.....',
+      '.....ooooo...ooo....',
+      '....oWWWWWoooWWWo...',
+      '...oWwWWwWWWWWwWWo..',
+      '..oWWWWWWWoWWWWWWWo.',
+      '.oWWkkWWWWWWWkkWWWWo',
+      'oWWWkkWWWWWWWkkWWWWo',
+      'oWWWWWWWWWWWWWWWWWo.',
+      '.oooooooooooooooooo.',
+      'rrrrrrrrrrrrrrrrrrrr',
+    ],
+  },
+  whale_fall: {
+    palette: { b: '#e8e0c8', B: '#c8bca0', r: '#e8453c' },
+    rows: [
+      '...b..b..b..b..b....',
+      '..b..b..b..b..b..b..',
+      '..b..b..b..b..b..b..',
+      'bbbbbbbbbbbbbbbbbbbb',
+      'BbBbBbBbBbBbBbBbBbBb',
+      '..r....r.....r......',
+    ],
+  },
+  sea_pen: {
+    palette: { p: '#ff8ad0', s: '#8a5a8a', r: '#2a2a3a' },
+    rows: [
+      '...p....', '..ppp...', '.p.p.p..', '..ppp...', '.p.p.p..', '..ppp...', '.p.p.p..', '..ppp...',
+      '.p.p.p..', '..ppp...', '...s....', '...s....', '...s....', '...s....', '..sss...', '.rrrrr..',
+    ],
+  },
+  glass_sponge: {
+    palette: { w: '#e8f4f8', r: '#2a2a3a' },
+    rows: [
+      '..wwwwww..', '.w.w..w.w.', '.wwwwwwww.', '.w.w..w.w.', '.wwwwwwww.', '.w.w..w.w.', '.wwwwwwww.',
+      '.w.w..w.w.', '.wwwwwwww.', '..w.w.w...', '..wwwwww..', '...w..w...', '...wwww...', '..rrrrrr..',
+    ],
+  },
 };
