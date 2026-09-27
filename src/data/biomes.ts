@@ -79,7 +79,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
     id: 'mangrove',
     name: 'Mangrove',
     sign: 'MANGROVE',
-    description: 'Racines de palétuviers et eaux saumâtres. Bientôt !',
+    description: 'Une forêt les pieds dans l’eau : racines de palétuviers, vase et eau saumâtre, nurserie de l’océan.',
     tempsC: [24, 27, 30],
     palette: {
       wall: '#dfe0c4', wallDark: '#b9ba98', wallLight: '#efefdc',
@@ -93,7 +93,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
     id: 'ice',
     name: 'Banquise',
     sign: 'BANQUISE',
-    description: 'Eaux glacées et lumière bleutée sous la glace. Bientôt !',
+    description: 'Sous la banquise, une eau glacée et limpide baignée de lumière bleutée.',
     tempsC: [-1, 1, 3],
     palette: {
       wall: '#e4eef6', wallDark: '#bccfe0', wallLight: '#f4f8fb',
@@ -107,7 +107,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
     id: 'abyss',
     name: 'Abysses',
     sign: 'ABYSSES',
-    description: 'Le noir des profondeurs, illuminé par la bioluminescence. Bientôt !',
+    description: 'Le noir des grandes profondeurs, où les animaux fabriquent leur propre lumière.',
     tempsC: [2, 4, 6],
     palette: {
       wall: '#3a3656', wallDark: '#262240', wallLight: '#4e4a70',

@@ -26,15 +26,15 @@ describe('données', () => {
     }
   });
 
-  it('18 espèces, 6 par biome jouable', () => {
-    expect(SPECIES).toHaveLength(18);
-    for (const biome of ['reef', 'amazon', 'koi']) {
+  it('36 espèces, 6 par biome', () => {
+    expect(SPECIES).toHaveLength(36);
+    for (const biome of ['reef', 'amazon', 'koi', 'mangrove', 'ice', 'abyss']) {
       expect(SPECIES.filter((s) => s.biome === biome)).toHaveLength(6);
     }
   });
 
   it('chaque biome jouable a une espèce sans condition de décor', () => {
-    for (const biome of ['reef', 'amazon', 'koi']) {
+    for (const biome of ['reef', 'amazon', 'koi', 'mangrove', 'ice', 'abyss']) {
       expect(SPECIES.some((s) => s.biome === biome && s.needs.length === 0)).toBe(true);
     }
   });
@@ -125,13 +125,16 @@ describe('progression', () => {
     expect(st.canBuild).toBe(true);
   });
 
-  it('les biomes « bientôt » ne sont pas constructibles', () => {
+  it('les six biomes se construisent, puis plus rien', () => {
     const state = createNewState();
-    state.floors = FLOOR_PLAN.slice(0, 3).map((e) => createFloor(e.biome));
     state.xp = 1e6;
     state.coins = 1e6;
     for (const s of SPECIES) state.journal[s.id] = { at: 0, count: 1, guessed: true };
-    expect(requirementStatus(state)!.canBuild).toBe(false);
+    state.floors = FLOOR_PLAN.slice(0, 5).map((e) => createFloor(e.biome));
+    expect(requirementStatus(state)!.entry.biome).toBe('abyss');
+    expect(requirementStatus(state)!.canBuild).toBe(true);
+    state.floors.push(createFloor('abyss'));
+    expect(requirementStatus(state)).toBeNull();
   });
 });
 

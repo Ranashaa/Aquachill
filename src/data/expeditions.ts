@@ -1,7 +1,7 @@
 // Expéditions du petit sous-marin : il part explorer un milieu et rapporte un œuf.
 import type { BiomeId } from './biomes';
 
-export type DestinationId = 'lagon' | 'rionegro' | 'torrent';
+export type DestinationId = 'lagon' | 'rionegro' | 'torrent' | 'paletuviers' | 'banquise' | 'fosse';
 
 export interface Destination {
   id: DestinationId;
@@ -43,6 +43,36 @@ export const DESTINATIONS: Destination[] = [
       'Un martin-pêcheur a plongé juste devant le hublot. Quelle précision !',
       'L’eau est si froide et si claire qu’on voit chaque galet du fond.',
       'Des pétales de cerisier flottaient à la surface. Les poissons croyaient à un repas.',
+    ],
+  },
+  {
+    id: 'paletuviers', name: 'Forêt de palétuviers', biome: 'mangrove', minutes: 40,
+    blurb: 'Des arbres les pieds dans l’eau, là où la rivière rencontre la mer.',
+    postcards: [
+      'À marée basse, des dizaines de périophtalmes sautillaient sur la vase comme de petits kangourous.',
+      'Les palétuviers filtrent le sel par leurs racines. Certains le rejettent même par leurs feuilles !',
+      'Un poisson-archer a fait tomber une libellule d’un seul jet. Joli tir !',
+      'Les mangroves protègent les côtes des tempêtes : leurs racines freinent les vagues.',
+    ],
+  },
+  {
+    id: 'banquise', name: 'Sous la banquise', biome: 'ice', minutes: 50,
+    blurb: 'Un plafond de glace, une lumière bleue et un silence immense.',
+    postcards: [
+      'Un phoque barbu nous a observés par un trou dans la glace. Ses moustaches frétillaient.',
+      'Sous la glace poussent des algues qui la colorent en vert : c’est le début de toute la chaîne alimentaire.',
+      'Le chant d’un béluga résonnait sous la banquise. On l’appelle « le canari des mers ».',
+      'L’eau était à −1 °C : l’eau de mer gèle plus froid que l’eau douce, grâce au sel.',
+    ],
+  },
+  {
+    id: 'fosse', name: 'Fosse abyssale', biome: 'abyss', minutes: 60,
+    blurb: 'La plongée la plus profonde : noir total, pression immense, lumières vivantes.',
+    postcards: [
+      'Phares éteints, tout scintillait autour de nous : 3 animaux sur 4 fabriquent leur propre lumière ici.',
+      'Près d’une cheminée hydrothermale, des vers géants vivaient dans une eau à plus de 300 °C à la sortie.',
+      'Une « neige marine » tombait sans fin : ce sont des miettes de vie qui descendent de la surface.',
+      'Un squelette de baleine abritait tout un village de crabes, de vers et de poissons.',
     ],
   },
 ];

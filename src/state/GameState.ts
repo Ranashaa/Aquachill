@@ -6,6 +6,7 @@ import type { StarId } from '../data/stars';
 import type { DestinationId } from '../data/expeditions';
 import type { MissionKind } from '../data/missions';
 import type { Personality } from '../data/personality';
+import type { Ambience } from '../audio/AudioEngine';
 
 export const SAVE_VERSION = 2;
 
@@ -98,8 +99,8 @@ export interface GameState {
   stars: Partial<Record<StarId, number>>;
   nextUid: number;
   savedAt: number;
-  settings: { muted: boolean };
-  stats: { visitors: number; coinsEarned: number; scrubs: number };
+  settings: { muted: boolean; ambience: Ambience; favoriteFloor: number };
+  stats: { visitors: number; coinsEarned: number; scrubs: number; pauses: number; pauseMinutes: number };
   tutorialDone: boolean;
   towerName: string;
   expedition: Expedition | null;
@@ -137,8 +138,8 @@ export function createNewState(now = Date.now()): GameState {
     stars: {},
     nextUid: 1,
     savedAt: now,
-    settings: { muted: false },
-    stats: { visitors: 0, coinsEarned: 0, scrubs: 0 },
+    settings: { muted: false, ambience: 'music', favoriteFloor: 0 },
+    stats: { visitors: 0, coinsEarned: 0, scrubs: 0, pauses: 0, pauseMinutes: 0 },
     tutorialDone: false,
     towerName: 'Aquachill',
     expedition: null,

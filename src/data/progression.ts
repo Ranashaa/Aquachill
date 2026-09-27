@@ -21,9 +21,9 @@ export const FLOOR_PLAN: FloorPlanEntry[] = [
   { biome: 'reef', req: { level: 1, species: 0, coins: 0 } },
   { biome: 'amazon', req: { level: 2, species: 3, coins: 250 } },
   { biome: 'koi', req: { level: 4, species: 7, coins: 800 } },
-  { biome: 'mangrove', req: { level: 6, species: 12, coins: 2000 }, comingSoon: true },
-  { biome: 'ice', req: { level: 8, species: 16, coins: 4000 }, comingSoon: true },
-  { biome: 'abyss', req: { level: 10, species: 20, coins: 8000 }, comingSoon: true },
+  { biome: 'mangrove', req: { level: 5, species: 11, coins: 1800 } },
+  { biome: 'ice', req: { level: 6, species: 15, coins: 3500 } },
+  { biome: 'abyss', req: { level: 8, species: 20, coins: 6000 } },
 ];
 
 /** XP cumulée nécessaire pour atteindre chaque niveau (index 0 = niveau 1). */

@@ -4,7 +4,10 @@ import type { DecorTag } from './decor';
 export type SpeciesId =
   | 'demoiselle' | 'clown' | 'gramma' | 'chirurgien' | 'mandarin' | 'hippocampe'
   | 'neon' | 'corydoras' | 'hachette' | 'scalaire' | 'discus' | 'pleco'
-  | 'medaka' | 'dojo' | 'bouviere' | 'ryukin' | 'ayu' | 'kohaku';
+  | 'medaka' | 'dojo' | 'bouviere' | 'ryukin' | 'ayu' | 'kohaku'
+  | 'monodactyle' | 'periophtalme' | 'scat' | 'gobie' | 'archer' | 'barramundi'
+  | 'saida' | 'chabot' | 'lompe' | 'omble' | 'loup' | 'poisson_glace'
+  | 'lanterne' | 'hachette_abyssale' | 'vipere' | 'barreleye' | 'gulper' | 'baudroie';
 
 export type Rarity = 'common' | 'uncommon' | 'rare';
 export const RARITY_NAMES: Record<Rarity, string> = {
@@ -193,6 +196,156 @@ export const SPECIES: Species[] = [
     trait: 'Grand, blanc à taches rouges',
     hint: 'Lanterne de pierre et nénuphars, dans une eau fraîche.',
     fact: 'Les koïs vivent plusieurs dizaines d’années ; la célèbre Hanako aurait atteint 226 ans (un âge très discuté !). Le kohaku, blanc à taches rouges, est l’une des variétés les plus anciennes.',
+  },
+
+  // ---------------- Mangrove ----------------
+  {
+    id: 'monodactyle', name: 'Monodactyle argenté', scientific: 'Monodactylus argenteus', biome: 'mangrove', rarity: 'common',
+    temps: ALL, needs: [], zone: 'middle', speed: 1, school: true,
+    size: '25 cm', origin: 'Estuaires de l’Indo-Pacifique',
+    trait: 'Losange argenté, nageoires jaunes',
+    hint: 'Vient dans n’importe quelle mangrove.',
+    fact: 'Il passe sans souci de l’eau douce à l’eau de mer : les jeunes remontent les rivières, les adultes retournent vers la mer. Son corps argenté renvoie la lumière comme un miroir.',
+  },
+  {
+    id: 'periophtalme', name: 'Périophtalme', scientific: 'Periophthalmus barbarus', biome: 'mangrove', rarity: 'common',
+    temps: ALL, needs: ['mud'], zone: 'bottom', speed: 0.7,
+    size: '16 cm', origin: 'Côtes d’Afrique de l’Ouest',
+    trait: 'Gros yeux sur le dessus de la tête, vit sur la vase',
+    hint: 'Adore se promener sur la vase.',
+    fact: 'Ce poisson passe plus de temps hors de l’eau que dedans ! Il respire aussi par la peau, garde de l’eau dans ses ouïes et marche sur la vase en s’appuyant sur ses nageoires.',
+  },
+  {
+    id: 'scat', name: 'Argus vert', scientific: 'Scatophagus argus', biome: 'mangrove', rarity: 'common',
+    temps: ALL, needs: ['roots'], zone: 'middle', speed: 0.8,
+    size: '30 cm', origin: 'Indo-Pacifique',
+    trait: 'Rond, bronze-vert à pois noirs',
+    hint: 'Traîne entre les racines des palétuviers.',
+    fact: 'Son nom scientifique signifie « mangeur de crottes » : il avale tout ce qui tombe dans l’eau et fait le ménage ! Il supporte l’eau douce comme l’eau salée.',
+  },
+  {
+    id: 'gobie', name: 'Gobie bourdon', scientific: 'Brachygobius doriae', biome: 'mangrove', rarity: 'uncommon',
+    temps: ALL, needs: ['oyster'], zone: 'bottom', speed: 0.9,
+    size: '4 cm', origin: 'Bornéo et Asie du Sud-Est',
+    trait: 'Minuscule, rayé jaune et noir',
+    hint: 'Se pose sur les coquillages.',
+    fact: 'Il porte les couleurs d’un bourdon ! Ses nageoires ventrales soudées forment une petite ventouse pour se poser sur les coquilles et les racines.',
+  },
+  {
+    id: 'archer', name: 'Poisson-archer', scientific: 'Toxotes jaculatrix', biome: 'mangrove', rarity: 'uncommon',
+    temps: [1, 2], needs: ['branch'], zone: 'surface', speed: 1,
+    size: '30 cm', origin: 'Mangroves de l’Indo-Pacifique',
+    trait: 'Argenté à taches noires, bouche pointue',
+    hint: 'Guette les insectes posés sur les branches basses.',
+    fact: 'Il crache un jet d’eau précis jusqu’à deux mètres pour faire tomber les insectes posés sur les feuilles, en corrigeant même la déviation de la lumière à la surface !',
+  },
+  {
+    id: 'barramundi', name: 'Barramundi', scientific: 'Lates calcarifer', biome: 'mangrove', rarity: 'rare',
+    temps: [2], needs: ['roots', 'oyster'], zone: 'middle', speed: 0.7,
+    size: '60 cm à 1,2 m', origin: 'Australie et Asie du Sud-Est',
+    trait: 'Grand, argenté, œil qui brille',
+    hint: 'Racines, huîtres et eau bien chaude.',
+    fact: 'Son nom vient d’une langue aborigène d’Australie. Il naît mâle et devient femelle en vieillissant. Ses yeux renvoient la lumière et semblent briller dans la pénombre.',
+  },
+
+  // ---------------- Banquise ----------------
+  {
+    id: 'saida', name: 'Morue polaire', scientific: 'Boreogadus saida', biome: 'ice', rarity: 'common',
+    temps: ALL, needs: [], zone: 'middle', speed: 1.1, school: true,
+    size: '25 cm', origin: 'Océan Arctique',
+    trait: 'Fine, argent-brun, petit barbillon',
+    hint: 'Vient sous n’importe quelle banquise.',
+    fact: 'Elle vit sous la glace et fabrique une protéine « antigel » qui empêche son sang de geler. C’est le repas préféré des phoques et des bélugas.',
+  },
+  {
+    id: 'chabot', name: 'Chabot à quatre cornes', scientific: 'Myoxocephalus quadricornis', biome: 'ice', rarity: 'common',
+    temps: ALL, needs: ['rocks'], zone: 'bottom', speed: 0.5,
+    size: '30 cm', origin: 'Côtes de l’Arctique',
+    trait: 'Grosse tête cornue, tacheté, posé au fond',
+    hint: 'Se confond avec les pierres du fond.',
+    fact: 'Quatre petites bosses osseuses sur sa tête lui ont donné son nom. Immobile sur le fond, il ressemble à un caillou et attend patiemment qu’une proie passe.',
+  },
+  {
+    id: 'lompe', name: 'Lompe', scientific: 'Cyclopterus lumpus', biome: 'ice', rarity: 'common',
+    temps: ALL, needs: ['kelp'], zone: 'bottom', speed: 0.5,
+    size: '30 cm', origin: 'Atlantique Nord et Arctique',
+    trait: 'Rond et bosselé, ventre orange',
+    hint: 'Aime les forêts de kelp.',
+    fact: 'Ses nageoires ventrales forment une ventouse pour s’accrocher aux rochers malgré les vagues. C’est le papa, au ventre orange, qui garde les œufs.',
+  },
+  {
+    id: 'omble', name: 'Omble chevalier', scientific: 'Salvelinus alpinus', biome: 'ice', rarity: 'uncommon',
+    temps: [0, 1], needs: ['floe'], zone: 'middle', speed: 1,
+    size: '60 cm', origin: 'Lacs et côtes de l’Arctique',
+    trait: 'Dos sombre moucheté, ventre rouge',
+    hint: 'Nage à l’ombre de la glace flottante, dans une eau très froide.',
+    fact: 'C’est le poisson d’eau douce qui vit le plus au nord de la planète. À la saison des amours, le ventre des mâles devient rouge vif.',
+  },
+  {
+    id: 'loup', name: 'Loup de mer', scientific: 'Anarhichas lupus', biome: 'ice', rarity: 'rare',
+    temps: [0, 1], needs: ['cave', 'rocks'], zone: 'bottom', speed: 0.5,
+    size: '1 m', origin: 'Atlantique Nord',
+    trait: 'Grosse tête, dents saillantes, rayures sombres',
+    hint: 'Une grotte, des pierres et une eau très froide.',
+    fact: 'Ses dents puissantes broient coquillages et oursins. Malgré son air féroce, il est plutôt calme, et le couple veille ensemble sur ses œufs.',
+  },
+  {
+    id: 'poisson_glace', name: 'Poisson des glaces', scientific: 'Chaenocephalus aceratus', biome: 'ice', rarity: 'rare',
+    temps: [0], needs: ['ice', 'floe'], zone: 'middle', speed: 0.6,
+    size: '70 cm', origin: 'Océan Austral (Antarctique)',
+    trait: 'Pâle et translucide, museau de crocodile',
+    hint: 'De la glace partout, et l’eau la plus froide possible.',
+    fact: 'Son sang est transparent : il n’a pas d’hémoglobine ! L’eau glacée de l’Antarctique contient tellement d’oxygène qu’il peut s’en passer.',
+  },
+
+  // ---------------- Abysses ----------------
+  {
+    id: 'lanterne', name: 'Poisson-lanterne', scientific: 'Myctophum punctatum', biome: 'abyss', rarity: 'common',
+    temps: ALL, needs: [], zone: 'middle', speed: 1, school: true,
+    size: '11 cm', origin: 'Atlantique, de la surface à 1 000 m',
+    trait: 'Sombre, points lumineux sur le ventre',
+    hint: 'Vient dans n’importe quel abysse.',
+    fact: 'Les poissons-lanternes sont parmi les vertébrés les plus nombreux de la planète. Chaque nuit, ils remontent vers la surface pour manger, puis redescendent à l’aube.',
+  },
+  {
+    id: 'hachette_abyssale', name: 'Hachette des profondeurs', scientific: 'Argyropelecus aculeatus', biome: 'abyss', rarity: 'common',
+    temps: ALL, needs: ['glow'], zone: 'middle', speed: 0.8,
+    size: '8 cm', origin: 'Tous les océans',
+    trait: 'Argentée, yeux tournés vers le haut',
+    hint: 'Attirée par les lumières vivantes.',
+    fact: 'Les lumières de son ventre imitent la faible lueur venue d’en haut : vue d’en dessous, elle devient invisible. Ses yeux en tube regardent vers la surface.',
+  },
+  {
+    id: 'vipere', name: 'Poisson-vipère', scientific: 'Chauliodus sloani', biome: 'abyss', rarity: 'uncommon',
+    temps: ALL, needs: ['rocks'], zone: 'middle', speed: 0.8,
+    size: '30 cm', origin: 'Tous les océans, jusqu’à 2 000 m',
+    trait: 'Long et sombre, crocs immenses',
+    hint: 'Rôde près des roches volcaniques.',
+    fact: 'Ses crocs sont si longs qu’ils dépassent de sa bouche fermée ! Une petite lumière au bout de sa nageoire dorsale lui sert d’appât.',
+  },
+  {
+    id: 'barreleye', name: 'Poisson à tête transparente', scientific: 'Macropinna microstoma', biome: 'abyss', rarity: 'uncommon',
+    temps: ALL, needs: ['glow', 'bones'], zone: 'hover', speed: 0.4,
+    size: '15 cm', origin: 'Pacifique Nord',
+    trait: 'Tête en dôme transparent, yeux verts dedans',
+    hint: 'Flotte près des lumières et d’un squelette de baleine.',
+    fact: 'Sa tête est un dôme transparent : ses yeux verts pivotent à l’intérieur pour regarder vers le haut ou devant lui. Les deux « yeux » visibles à l’avant sont en fait ses narines !',
+  },
+  {
+    id: 'gulper', name: 'Grand-gosier', scientific: 'Eurypharynx pelecanoides', biome: 'abyss', rarity: 'rare',
+    temps: [0, 1], needs: ['wreck'], zone: 'middle', speed: 0.5,
+    size: '75 cm', origin: 'Tous les océans, jusqu’à 3 000 m',
+    trait: 'Bouche géante, queue fine lumineuse',
+    hint: 'Ondule autour d’une épave, dans le froid.',
+    fact: 'Sa bouche immense se déplie comme un filet pour engloutir l’eau et les proies. Le bout de sa longue queue porte une petite lumière rose.',
+  },
+  {
+    id: 'baudroie', name: 'Baudroie abyssale', scientific: 'Melanocetus johnsonii', biome: 'abyss', rarity: 'rare',
+    temps: [0], needs: ['vent', 'bones'], zone: 'bottom', speed: 0.4,
+    size: '18 cm', origin: 'Tous les océans, jusqu’à 4 000 m',
+    trait: 'Ronde et noire, lanterne sur la tête',
+    hint: 'Une cheminée chaude, un squelette de baleine, et l’eau la plus froide.',
+    fact: 'La femelle attire ses proies avec une lanterne sur la tête, allumée par des bactéries lumineuses. Le mâle, minuscule, doit la retrouver dans le noir total.',
   },
 ];
 

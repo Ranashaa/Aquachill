@@ -451,3 +451,41 @@ a { color: #2a7fb8; }
   transition: transform 4s ease-in-out;
 }
 .breath-label { font-size: calc(var(--px) * 9); text-shadow: 0 calc(var(--px) * 0.5) 0 #1a2040; }
+
+/* ---------------------------------------------------------------- pause */
+
+.pause-btn {
+  background: #6ad85a; color: #1e3a1e; font-weight: 700;
+  padding: calc(var(--px) * 1.5) calc(var(--px) * 2.5);
+  box-shadow: 0 calc(var(--px) * 1) 0 #2a6a3a;
+}
+.choice-row { display: flex; flex-wrap: wrap; gap: calc(var(--px) * 2); }
+.pause-clock {
+  color: #fff; font-size: calc(var(--px) * 8); font-weight: 700;
+  min-width: calc(var(--px) * 28); text-align: center;
+  text-shadow: 0 calc(var(--px) * 0.5) 0 #1a2040;
+}
+.thought-card {
+  position: absolute; left: 10%; right: 10%; top: 12%;
+  background: rgba(253, 246, 232, 0.92);
+  border-radius: calc(var(--px) * 4);
+  padding: calc(var(--px) * 4);
+  text-align: center; font-size: calc(var(--px) * 6.5); line-height: 1.4;
+  box-shadow: 0 calc(var(--px) * 2) calc(var(--px) * 6) rgba(10, 16, 40, 0.3);
+  animation: fade-in 1.5s;
+  transition: opacity 1.5s;
+  pointer-events: none;
+}
+.thought-card.out { opacity: 0; }
+.pause-end {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 16, 40, 0.45); animation: fade-in 1s;
+}
+.pause-card {
+  width: 84%; background: var(--paper); border-radius: calc(var(--px) * 5);
+  padding: calc(var(--px) * 6) calc(var(--px) * 5); text-align: center;
+  display: flex; flex-direction: column; gap: calc(var(--px) * 3); align-items: center;
+  box-shadow: 0 calc(var(--px) * 2) 0 var(--line);
+  font-size: calc(var(--px) * 6);
+}
+.pause-card b { font-size: calc(var(--px) * 8); }

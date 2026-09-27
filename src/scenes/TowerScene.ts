@@ -266,8 +266,8 @@ export class TowerScene extends Phaser.Scene {
     }
   }
 
-  openAquarium(i: number): void {
-    this.scene.launch('Aquarium', { floor: i });
+  openAquarium(i: number, zen = false): void {
+    this.scene.launch('Aquarium', { floor: i, zen });
     this.scene.sleep();
   }
 

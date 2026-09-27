@@ -18,6 +18,8 @@ import { happiness, mood, MOOD_TEXT } from '../systems/happiness';
 import { levelProgress, requirementStatus } from '../systems/progression';
 import { shuffle } from '../systems/rng';
 import { h, pxImg } from './dom';
+import { AMBIENCE_NAMES, type Ambience } from '../audio/AudioEngine';
+import { randomThought, thoughtOfTheDay } from '../data/thoughts';
 import { DESTINATIONS, DESTINATIONS_BY_ID } from '../data/expeditions';
 import { hearts, PERSONALITIES } from '../data/personality';
 import { VARIANTS } from '../data/variants';
@@ -210,11 +212,20 @@ export class UI {
     const sim = services.sim;
     this.root.classList.toggle('zen', this.mode === 'zen');
     if (this.mode === 'zen') {
-      this.hudBottom.replaceChildren(
-        this.tool('fishicon', 'Quitter', () => this.aquarium()?.setZen(false) ?? this.setMode('aquarium', this.floor)),
-        this.tool('bubble', 'Respirer', () => this.openBreathing()),
-        this.tool('ico-camera', 'Photo', () => this.aquarium()?.photo()),
-      );
+      if (this.pause) {
+        this.hudBottom.replaceChildren(
+          this.tool('bubble', 'Respirer', () => this.openBreathing()),
+          h('div', { class: 'pause-clock' }, this.pauseClock),
+          this.tool('ico-camera', 'Photo', () => this.aquarium()?.photo()),
+          this.tool('ico-leaf', 'Terminer', () => this.endPause(true)),
+        );
+      } else {
+        this.hudBottom.replaceChildren(
+          this.tool('fishicon', 'Quitter', () => this.aquarium()?.setZen(false) ?? this.setMode('aquarium', this.floor)),
+          this.tool('bubble', 'Respirer', () => this.openBreathing()),
+          this.tool('ico-camera', 'Photo', () => this.aquarium()?.photo()),
+        );
+      }
       return;
     }
     if (this.mode === 'tower') {
@@ -225,6 +236,7 @@ export class UI {
         this.coinPill(),
         h('div', { class: 'level' }, this.levelText, h('div', { class: 'xpbar' }, this.xpFill)),
         h('div', { class: 'spacer' }),
+        h('button', { class: 'btn pause-btn', onclick: () => this.openPause() }, sprite('ico-leaf'), 'Pause'),
         bellBtn,
         this.soundBtn(),
         h('button', { class: 'btn icon', title: 'Réglages', 'aria-label': 'Réglages', onclick: () => this.openSettings() }, sprite('gear')),
@@ -315,6 +327,7 @@ export class UI {
     msg: string,
     opts: { icon?: string; img?: string; onClick?: () => void; duration?: number } = {},
   ): void {
+    if (this.pause) return; // pendant une pause, rien ne vient déranger
     const key = opts.img ?? opts.icon;
     const el = h('div', { class: 'toast' }, key ? fit(key, 12, 12, 1) : null, msg);
     if (opts.onClick) {
@@ -544,7 +557,9 @@ export class UI {
     this.open(h('div', { class: 'panel' },
       h('div', { class: 'panel-head' }, 'Pendant ton absence…'),
       body,
-      h('div', { class: 'panel-foot' }, h('button', { class: 'btn primary', onclick: () => this.closeModal() }, 'Bon retour !'))), true);
+      h('div', { class: 'panel-foot' },
+        h('button', { class: 'btn', onclick: () => this.openPause() }, 'Faire une pause'),
+        h('button', { class: 'btn primary', onclick: () => this.closeModal() }, 'Bon retour !'))), true);
   }
 
   // ------------------------------------------------------------------ sous-marin
@@ -647,6 +662,110 @@ export class UI {
       timer = window.setTimeout(step, ms);
     };
     timer = window.setTimeout(step, 1500);
+  }
+
+  // ------------------------------------------------------------------- pause
+
+  private pause: { end: number; minutes: number; floor: number; prevAmbience: Ambience } | null = null;
+  private pauseClock = h('span', null, '');
+  private pauseTimer = 0;
+
+  /** Choisir sa pause : durée, ambiance sonore, aquarium. */
+  openPause(): void {
+    const s = services.sim.state;
+    let minutes = 5;
+    let ambience: Ambience = s.settings.ambience === 'music' ? 'waves' : s.settings.ambience;
+    let floor = Math.min(s.settings.favoriteFloor, s.floors.length - 1);
+    const choice = <T,>(values: T[], label: (v: T) => string, get: () => T, set: (v: T) => void) => {
+      const row = h('div', { class: 'choice-row' });
+      const render = () => row.replaceChildren(...values.map((v) =>
+        h('button', { class: `tab${get() === v ? ' on' : ''}`, onclick: () => { set(v); render(); } }, label(v))));
+      render();
+      return row;
+    };
+    const panel = h('div', { class: 'panel' },
+      this.head('Une petite pause'),
+      h('div', { class: 'panel-body' },
+        h('p', { class: 'muted' }, 'Pose ton téléphone, respire. Aucune notification ne viendra te déranger, un carillon doux t’indiquera la fin.'),
+        h('div', { class: 'section-title' }, 'Combien de temps ?'),
+        choice([2, 5, 10], (m) => `${m} min`, () => minutes, (v) => (minutes = v)),
+        h('div', { class: 'section-title' }, 'Ambiance'),
+        choice<Ambience>(['waves', 'rain', 'music', 'silence'], (a) => AMBIENCE_NAMES[a], () => ambience, (v) => {
+          ambience = v;
+          services.audio.unlock();
+          services.audio.setAmbience(v);
+        }),
+        h('div', { class: 'section-title' }, 'Quel aquarium ?'),
+        choice(s.floors.map((_, i) => i), (i) => BIOMES[s.floors[i].biome].name, () => floor, (v) => (floor = v))),
+      h('div', { class: 'panel-foot' },
+        h('button', { class: 'btn primary', onclick: () => this.startPause(minutes, floor, ambience) }, 'Commencer ma pause')),
+    );
+    this.open(panel);
+  }
+
+  startPause(minutes: number, floor: number, ambience: Ambience): void {
+    const s = services.sim.state;
+    s.settings.favoriteFloor = floor;
+    services.audio.unlock();
+    this.pause = { end: Date.now() + minutes * 60_000, minutes, floor, prevAmbience: s.settings.ambience };
+    services.audio.setAmbience(ambience);
+    this.closeModal();
+    const game = services.game;
+    if (game.scene.isActive('Aquarium')) {
+      game.scene.stop('Aquarium');
+      game.scene.wake('Tower');
+    }
+    (game.scene.getScene('Tower') as unknown as { openAquarium(i: number, zen: boolean): void }).openAquarium(floor, true);
+    this.showThought(thoughtOfTheDay());
+    clearInterval(this.pauseTimer);
+    this.pauseTimer = window.setInterval(() => this.tickPause(), 500);
+    this.tickPause();
+  }
+
+  private tickPause(): void {
+    if (!this.pause) return;
+    const left = Math.max(0, this.pause.end - Date.now());
+    const sec = Math.ceil(left / 1000);
+    this.pauseClock.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    if (left <= 0) this.endPause(false);
+  }
+
+  /** Fin de la pause : carillon, pensée, et retour en douceur. */
+  private endPause(early: boolean): void {
+    const p = this.pause;
+    if (!p) return;
+    clearInterval(this.pauseTimer);
+    const s = services.sim.state;
+    const spent = Math.max(1, Math.round((p.minutes * 60_000 - Math.max(0, p.end - Date.now())) / 60_000));
+    s.stats.pauses++;
+    s.stats.pauseMinutes += spent;
+    services.sim.progress('breathe');
+    services.sim.save();
+    this.pause = null;
+    services.audio.play('chime');
+    const close = () => {
+      card.remove();
+      services.audio.setAmbience(p.prevAmbience);
+      this.aquarium()?.setZen(false);
+    };
+    const card = h('div', { class: 'pause-end' },
+      h('div', { class: 'pause-card' },
+        h('b', null, early ? 'Pause terminée' : 'Ta pause est terminée'),
+        h('p', null, randomThought(thoughtOfTheDay())),
+        h('p', { class: 'muted' }, `Tu as pris ${spent} minute${spent > 1 ? 's' : ''} pour toi. ${s.stats.pauses} pause${s.stats.pauses > 1 ? 's' : ''} depuis le début.`),
+        h('div', { class: 'choice-row' },
+          h('button', { class: 'btn', onclick: () => { card.remove(); this.startPause(2, p.floor, services.audio.currentAmbience); } }, 'Encore 2 min'),
+          h('button', { class: 'btn primary', onclick: close }, 'Merci, j’y retourne'))));
+    this.root.append(card);
+    this.renderHud();
+  }
+
+  /** Une pensée qui apparaît quelques secondes, en douceur. */
+  private showThought(text: string): void {
+    const el = h('div', { class: 'thought-card' }, text);
+    this.root.append(el);
+    setTimeout(() => el.classList.add('out'), 7000);
+    setTimeout(() => el.remove(), 8500);
   }
 
   // --------------------------------------------------------------- album des stars
@@ -988,6 +1107,22 @@ export class UI {
         h('p', null, `Visiteurs accueillis : ${st.visitors}`),
         h('p', null, `Pièces gagnées : ${st.coinsEarned}`),
         h('p', null, `Espèces identifiées : ${discoveredCount(sim.state)}/${SPECIES.length}`),
+        h('div', { class: 'section-title' }, 'Ambiance sonore'),
+        (() => {
+          const row = h('div', { class: 'choice-row' });
+          const render = () => row.replaceChildren(...(['music', 'waves', 'rain', 'silence'] as Ambience[]).map((a) =>
+            h('button', {
+              class: `tab${sim.state.settings.ambience === a ? ' on' : ''}`,
+              onclick: () => {
+                sim.state.settings.ambience = a;
+                services.audio.unlock();
+                services.audio.setAmbience(a);
+                render();
+              },
+            }, AMBIENCE_NAMES[a])));
+          render();
+          return row;
+        })(),
         h('div', { class: 'section-title' }, 'Ta tour'),
         (() => {
           const input = h('input', { class: 'name-input', value: sim.state.towerName, maxlength: '14' });
