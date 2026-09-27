@@ -23,8 +23,11 @@ export class AquariumScene extends Phaser.Scene {
     super('Aquarium');
   }
 
-  init(data: { floor: number }): void {
+  private startZen = false;
+
+  init(data: { floor: number; zen?: boolean }): void {
     this.floorIndex = data.floor;
+    this.startZen = !!data.zen;
     this.mode = 'view';
     this.markers = [];
     this.unsub = [];
@@ -72,6 +75,12 @@ export class AquariumScene extends Phaser.Scene {
       this.tank.destroy();
     });
     services.ui.setMode('aquarium', this.floorIndex);
+    if (this.startZen) {
+      this.setZen(true);
+      services.ui.setMode('zen', this.floorIndex);
+    }
+    // les poissons viennent dire bonjour
+    this.time.delayedCall(300, () => this.tank.greet());
   }
 
   setMode(mode: AquariumMode): void {

@@ -261,6 +261,17 @@ export class TankView {
     }
   }
 
+  /** Bonjour ! Les poissons viennent à la vitre, les plus complices avec un cœur. */
+  greet(): void {
+    const r = this.rect;
+    this.swimmers.forEach((sw, i) => {
+      sw.lure = { x: r.x + r.w / 2 + (i - this.swimmers.length / 2) * 9, y: r.y + r.h * 0.45 + ((i % 3) - 1) * 6, t: 3.5 };
+      if (sw.fish.friendship >= 40) {
+        this.scene.time.delayedCall(1800 + i * 200, () => sw.sprite.active && this.spawnHeartAt(sw.sprite.x, sw.sprite.y - 6));
+      }
+    });
+  }
+
   /** Réaction à un câlin : petit saut, cœur et prénom. */
   petReaction(uid: number, gained: boolean): void {
     const sw = this.swimmers.find((o) => o.fish.uid === uid);

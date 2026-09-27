@@ -57,6 +57,12 @@ Paramètres d’URL utiles pour le développement :
 - **Moments zen** : mode contemplation plein écran, respiration guidée, photos souvenirs
   à télécharger, objectifs doux sans chrono, nouvelles de la tour et résumé au retour.
 - **Ta tour à toi** : donne-lui un nom, il s’affiche sur l’enseigne et dans le hall.
+- **Mode Pause**, pensé pour souffler entre deux rendez-vous : choisis 2, 5 ou 10 minutes,
+  une ambiance (vagues, pluie, musique douce ou silence) et ton aquarium préféré. Tes
+  poissons viennent te dire bonjour à la vitre, une pensée du jour s’affiche, aucune
+  notification ne te dérange, et un carillon doux annonce la fin.
+  Astuce : ajoute `…/Aquachill/?pause=5` à l’écran d’accueil de ton téléphone pour une
+  pause en un geste.
 
 Prochaine étape possible : de vrais sprites dessinés à la main.
 

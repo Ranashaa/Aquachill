@@ -25,7 +25,7 @@ window.addEventListener('resize', updatePixelSize);
 const state = loadGame() ?? createNewState();
 const sim = new Sim(state);
 services.sim = sim;
-services.audio = new AudioEngine(state.settings.muted);
+services.audio = new AudioEngine(state.settings.muted, state.settings.ambience);
 const lastSeen = state.savedAt;
 const offline = sim.applyOffline();
 
@@ -60,6 +60,11 @@ if (!isGallery) {
         state.tutorialDone = true;
         sim.save();
       });
+    } else if (params.has('pause')) {
+      // raccourci « pause » : ?pause=5 ouvre directement une pause de 5 minutes
+      const minutes = Math.min(30, Math.max(1, Number(params.get('pause')) || 5));
+      const amb = state.settings.ambience === 'music' ? 'waves' : state.settings.ambience;
+      setTimeout(() => services.ui.startPause(minutes, Math.min(state.settings.favoriteFloor, state.floors.length - 1), amb), 800);
     } else if (offline.seconds >= 120) {
       services.ui.openReturnSummary(lastSeen, offline.coins, offline.arrivals);
     }

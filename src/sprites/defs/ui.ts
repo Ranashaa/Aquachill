@@ -184,6 +184,10 @@ export const UI_SPRITES: Record<string, SpriteDef> = {
     palette: { y: '#ffc83a', o: '#2b2238' },
     rows: ['...o...', '..yyy..', '.yyyyy.', '.yyyyy.', '.yyyyy.', 'yyyyyyy', '...o...'],
   },
+  'ico-leaf': {
+    palette: { g: '#6ad85a', G: '#3aa84a', s: '#2a6a3a' },
+    rows: ['.....gg', '...gggG', '..ggGGG', '.ggGGG.', '.gGGG..', 's.GG...', '.s.....'],
+  },
   crane: {
     palette: { y: '#ffc23a', k: '#3a3656', g: '#8a8a94' },
     rows: [

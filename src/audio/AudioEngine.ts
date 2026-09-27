@@ -1,7 +1,17 @@
 // Sons et musique synthétisés en WebAudio : aucun fichier audio externe.
 // Musique : nappe d'accords doux + notes pentatoniques aléatoires avec écho.
 
-export type Sfx = 'bubble' | 'coin' | 'scrub' | 'newFish' | 'build' | 'click' | 'star' | 'levelUp' | 'clean' | 'place';
+export type Sfx = 'bubble' | 'coin' | 'scrub' | 'newFish' | 'build' | 'click' | 'star' | 'levelUp' | 'clean' | 'place' | 'chime';
+
+/** Ambiance sonore de fond. */
+export type Ambience = 'music' | 'waves' | 'rain' | 'silence';
+
+export const AMBIENCE_NAMES: Record<Ambience, string> = {
+  music: 'Musique douce',
+  waves: 'Vagues',
+  rain: 'Pluie',
+  silence: 'Silence',
+};
 
 const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -27,7 +37,101 @@ export class AudioEngine {
   private timer?: number;
   private lastScrub = 0;
 
-  constructor(private muted: boolean) {}
+  private ambience: Ambience = 'music';
+  private bed?: { src: AudioBufferSourceNode; gain: GainNode; lfo?: OscillatorNode };
+  private dropTimer?: number;
+
+  constructor(private muted: boolean, ambience: Ambience = 'music') {
+    this.ambience = ambience;
+  }
+
+  get currentAmbience(): Ambience {
+    return this.ambience;
+  }
+
+  /** Change l'ambiance : musique générative, vagues, pluie ou silence. */
+  setAmbience(a: Ambience): void {
+    this.ambience = a;
+    if (!this.ctx) return;
+    this.stopBed();
+    this.musicBus!.gain.setTargetAtTime(a === 'music' ? 0.16 : 0, this.ctx.currentTime, 0.4);
+    if (a === 'waves') this.startWaves();
+    if (a === 'rain') this.startRain();
+  }
+
+  private loopNoise(seconds = 3): AudioBufferSourceNode {
+    const ctx = this.ctx!;
+    const buf = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    // bruit « brun » : plus doux que le bruit blanc
+    let last = 0;
+    for (let i = 0; i < d.length; i++) {
+      last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      d[i] = last * 3.5;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    return src;
+  }
+
+  private startWaves(): void {
+    const ctx = this.ctx!;
+    const src = this.loopNoise();
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 700;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.35;
+    // le ressac : volume qui enfle et retombe toutes les ~9 s
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.11;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.28;
+    lfo.connect(depth);
+    depth.connect(gain.gain);
+    src.connect(lp);
+    lp.connect(gain);
+    gain.connect(this.master!);
+    src.start();
+    lfo.start();
+    this.bed = { src, gain, lfo };
+  }
+
+  private startRain(): void {
+    const ctx = this.ctx!;
+    const src = this.loopNoise();
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.value = 1800;
+    hp.Q.value = 0.4;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.5;
+    src.connect(hp);
+    hp.connect(gain);
+    gain.connect(this.master!);
+    src.start();
+    this.bed = { src, gain };
+    // gouttes sur la vitre
+    this.dropTimer = window.setInterval(() => {
+      if (this.muted || !this.ctx) return;
+      const t = this.ctx.currentTime;
+      if (Math.random() < 0.6) this.tone(1800 + Math.random() * 2400, t, 0.03, 'sine', 0.04);
+    }, 90);
+  }
+
+  private stopBed(): void {
+    if (this.dropTimer) clearInterval(this.dropTimer);
+    this.dropTimer = undefined;
+    if (!this.bed || !this.ctx) return;
+    const { src, gain, lfo } = this.bed;
+    gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
+    setTimeout(() => {
+      src.stop();
+      lfo?.stop();
+    }, 1500);
+    this.bed = undefined;
+  }
 
   get isMuted(): boolean {
     return this.muted;
@@ -74,6 +178,7 @@ export class AudioEngine {
 
     this.nextBeat = ctx.currentTime + 0.2;
     this.timer = window.setInterval(() => this.schedule(), 200);
+    this.setAmbience(this.ambience);
   }
 
   setMuted(muted: boolean): void {
@@ -209,6 +314,10 @@ export class AudioEngine {
         break;
       case 'levelUp':
         [60, 64, 67, 72, 76, 79].forEach((n, i) => this.tone(midi(n), t + i * 0.08, 0.5, 'triangle', 0.16));
+        break;
+      case 'chime':
+        // carillon doux de fin de pause
+        [79, 76, 72, 67].forEach((n, i) => this.tone(midi(n), t + i * 0.35, 2.4, 'sine', 0.14));
         break;
       case 'build':
         [48, 55, 60, 64, 67].forEach((n) => this.tone(midi(n), t, 1.2, 'triangle', 0.1));
