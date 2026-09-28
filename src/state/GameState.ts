@@ -129,7 +129,7 @@ export interface GameState {
   stars: Partial<Record<StarId, number>>;
   nextUid: number;
   savedAt: number;
-  settings: { muted: boolean; ambience: Ambience; favoriteFloor: number };
+  settings: { muted: boolean; ambience: Ambience; favoriteFloor: number; farmIntro: boolean };
   stats: { visitors: number; coinsEarned: number; scrubs: number; pauses: number; pauseMinutes: number };
   tutorialDone: boolean;
   towerName: string;
@@ -190,7 +190,7 @@ export function createNewState(now = Date.now()): GameState {
     stars: {},
     nextUid: 1,
     savedAt: now,
-    settings: { muted: false, ambience: 'music', favoriteFloor: 0 },
+    settings: { muted: false, ambience: 'music', favoriteFloor: 0, farmIntro: false },
     stats: { visitors: 0, coinsEarned: 0, scrubs: 0, pauses: 0, pauseMinutes: 0 },
     tutorialDone: false,
     towerName: 'Aquachill',

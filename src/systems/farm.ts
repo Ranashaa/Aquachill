@@ -128,18 +128,17 @@ export const binValue = (state: GameState) =>
 
 export const villagerHearts = (state: GameState, id: VillagerId) => hearts(state.villagers[id].friendship);
 
-/** Où se trouve un habitué aujourd'hui : étage (-1 = hall) et position (0-1). */
+/** Où se trouve un habitué aujourd'hui : étage (-1 = hall) et position (0-1), chacun à sa place. */
 export function villagerSpot(state: GameState, id: VillagerId): { floor: number; x: number } | null {
   const m = state.day.minute;
   if (m < 8 * 60 || m >= 21 * 60) return null;
   const idx = VILLAGER_LIST.findIndex((v) => v.id === id);
-  const n = state.floors.length;
-  const r = hash01(state.day.n * 31 + idx * 7);
-  // un habitué sur quatre traîne dans le hall, devant le Grand Bassin
-  const floor = r < 0.25 ? -1 : Math.floor(hash01(state.day.n * 13 + idx) * n);
-  // côtés gauche/droit de la salle, pour ne pas masquer les bacs
-  const x = floor === -1 ? 0.55 + idx * 0.05 : (hash01(state.day.n + idx * 3) < 0.5 ? 0.06 : 0.9);
-  return { floor, x };
+  // places possibles : deux dans le hall (devant le Grand Bassin), deux par étage (côtés gauche et droit,
+  // pour ne pas masquer les bacs)
+  const spots: { floor: number; x: number }[] = [{ floor: -1, x: 0.58 }, { floor: -1, x: 0.68 }];
+  state.floors.forEach((_, i) => spots.push({ floor: i, x: 0.06 }, { floor: i, x: 0.9 }));
+  const order = spots.map((s, k) => ({ s, r: hash01(state.day.n * 131 + k * 17) })).sort((a, b) => a.r - b.r);
+  return order[idx % order.length].s;
 }
 
 export function dailyLine(state: GameState, id: VillagerId): string {

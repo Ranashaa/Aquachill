@@ -110,6 +110,11 @@ describe('journée', () => {
       expect(spot.floor).toBeGreaterThanOrEqual(-1);
       expect(spot.floor).toBeLessThan(2);
     }
+    for (let d = 1; d < 20; d++) {
+      s.day.n = d;
+      const keys = VILLAGER_LIST.map((v) => JSON.stringify(farm.villagerSpot(s, v.id)));
+      expect(new Set(keys).size).toBe(VILLAGER_LIST.length);
+    }
     s.day.minute = 22 * 60;
     expect(farm.villagerSpot(s, 'lila')).toBeNull();
   });

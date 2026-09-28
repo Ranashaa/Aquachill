@@ -27,6 +27,8 @@ const sim = new Sim(state);
 services.sim = sim;
 services.audio = new AudioEngine(state.settings.muted, state.settings.ambience);
 const lastSeen = state.savedAt;
+const forcedHour = new URLSearchParams(location.search).get('hour');
+if (forcedHour) state.day.minute = ((Number(forcedHour) + 18) % 24 + 6) * 60;
 const offline = sim.applyOffline();
 
 const game = new Phaser.Game({
@@ -59,7 +61,10 @@ if (!isGallery) {
       services.ui.openWelcome(() => {
         state.tutorialDone = true;
         sim.save();
+        services.ui.openFarmIntro();
       });
+    } else if (!state.settings.farmIntro) {
+      services.ui.openFarmIntro();
     } else if (params.has('pause')) {
       // raccourci « pause » : ?pause=5 ouvre directement une pause de 5 minutes
       const minutes = Math.min(30, Math.max(1, Number(params.get('pause')) || 5));
