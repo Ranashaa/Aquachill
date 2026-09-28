@@ -7,8 +7,11 @@ import type { DestinationId } from '../data/expeditions';
 import type { MissionKind } from '../data/missions';
 import type { Personality } from '../data/personality';
 import type { Ambience } from '../audio/AudioEngine';
+import { DAY_START, PLOTS_PER_FLOOR, type CropId } from '../data/garden';
+import type { VillagerId } from '../data/villagers';
+import type { BundleId } from '../data/bundles';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export type Stage = 'egg' | 'fry' | 'juvenile' | 'adult';
 
@@ -65,6 +68,32 @@ export interface NewsItem {
   icon: string;
 }
 
+/** Un bac de culture au pied de l'aquarium. */
+export interface Plot {
+  crop: CropId | null;
+  /** Jours de soin reçus depuis la plantation (ou la dernière récolte). */
+  grown: number;
+  tendedToday: boolean;
+}
+
+export interface VillagerState {
+  /** Amitié de 0 à 100 (20 points par cœur). */
+  friendship: number;
+  talkedToday: boolean;
+  giftedToday: boolean;
+  /** Cœurs pour lesquels une lettre a déjà été envoyée. */
+  letters: number[];
+}
+
+export interface Letter {
+  from: VillagerId;
+  hearts: number;
+  day: number;
+  read: boolean;
+}
+
+export type Counter = 'feed' | 'tend' | 'harvest' | 'ship';
+
 export interface FloorState {
   biome: BiomeId;
   temp: Temp;
@@ -75,6 +104,7 @@ export interface FloorState {
   algae: number[];
   /** Secondes avant la prochaine tentative d'attraction. */
   attractIn: number;
+  plots: Plot[];
 }
 
 export interface JournalEntry {
@@ -99,7 +129,7 @@ export interface GameState {
   stars: Partial<Record<StarId, number>>;
   nextUid: number;
   savedAt: number;
-  settings: { muted: boolean; ambience: Ambience; favoriteFloor: number };
+  settings: { muted: boolean; ambience: Ambience; favoriteFloor: number; farmIntro: boolean };
   stats: { visitors: number; coinsEarned: number; scrubs: number; pauses: number; pauseMinutes: number };
   tutorialDone: boolean;
   towerName: string;
@@ -110,6 +140,27 @@ export interface GameState {
   news: NewsItem[];
   /** Variantes rares déjà vues, par espèce. */
   variantsSeen: Partial<Record<SpeciesId, boolean>>;
+  /** Calendrier du jeu : jour (1, 2, …) et minute de la journée (6:00 = 360). */
+  day: { n: number; minute: number };
+  seeds: Partial<Record<CropId, number>>;
+  items: Partial<Record<CropId, number>>;
+  /** Coffre d'expédition, vendu pendant la nuit. */
+  shipBin: Partial<Record<CropId, number>>;
+  villagers: Record<VillagerId, VillagerState>;
+  mail: Letter[];
+  /** Objets déjà déposés dans chaque lot du Grand Bassin. */
+  bundles: Partial<Record<BundleId, { given: Partial<Record<CropId, number>>; done: boolean }>>;
+  counters: Record<Counter, number>;
+  boots: boolean;
+  /** Bilan de la journée en cours. */
+  today: { coins: number; visitors: number; tended: number; harvested: number };
+}
+
+export const emptyPlots = (): Plot[] => Array.from({ length: PLOTS_PER_FLOOR }, () => ({ crop: null, grown: 0, tendedToday: false }));
+
+export function freshVillagers(): Record<VillagerId, VillagerState> {
+  const v = (): VillagerState => ({ friendship: 0, talkedToday: false, giftedToday: false, letters: [] });
+  return { marcel: v(), lila: v(), gobie: v(), nina: v() };
 }
 
 export function createFloor(biome: BiomeId): FloorState {
@@ -120,6 +171,7 @@ export function createFloor(biome: BiomeId): FloorState {
     fish: [],
     algae: Array.from({ length: ALGAE_COLS * ALGAE_ROWS }, () => 0),
     attractIn: 12,
+    plots: emptyPlots(),
   };
 }
 
@@ -138,7 +190,7 @@ export function createNewState(now = Date.now()): GameState {
     stars: {},
     nextUid: 1,
     savedAt: now,
-    settings: { muted: false, ambience: 'music', favoriteFloor: 0 },
+    settings: { muted: false, ambience: 'music', favoriteFloor: 0, farmIntro: false },
     stats: { visitors: 0, coinsEarned: 0, scrubs: 0, pauses: 0, pauseMinutes: 0 },
     tutorialDone: false,
     towerName: 'Aquachill',
@@ -148,6 +200,16 @@ export function createNewState(now = Date.now()): GameState {
     missions: [],
     news: [],
     variantsSeen: {},
+    day: { n: 1, minute: DAY_START },
+    seeds: { zoanthus: 3 },
+    items: {},
+    shipBin: {},
+    villagers: freshVillagers(),
+    mail: [],
+    bundles: {},
+    counters: { feed: 0, tend: 0, harvest: 0, ship: 0 },
+    boots: false,
+    today: { coins: 0, visitors: 0, tended: 0, harvested: 0 },
   };
 }
 

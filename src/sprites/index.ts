@@ -7,6 +7,9 @@ import { FISH_SPRITES } from './defs/fish';
 import { personFrames, STAR_SPECS, visitorLooks } from './defs/people';
 import { ROOM_SPRITES } from './defs/room';
 import { UI_SPRITES } from './defs/ui';
+import { cropDef, GARDEN_SPRITES, KEEPER_SPEC } from './defs/garden';
+import { CROP_LIST, type CropId } from '../data/garden';
+import { VILLAGER_LIST, type VillagerId } from '../data/villagers';
 import { VARIANTS } from '../data/variants';
 import type { FishInstance } from '../state/GameState';
 import { drawText, fontHeight, measureText, type FontId } from './font';
@@ -34,6 +37,8 @@ export const fishTexture = (f: Pick<FishInstance, 'species' | 'variant'>) => `fi
 export const decorKey = (id: DecorId) => `decor-${id}`;
 export const visitorKey = (look: number) => `visitor-${look}`;
 export const starKey = (id: StarId) => `star-${id}`;
+export const cropKey = (id: CropId, stage: 0 | 1 | 2 = 2) => `crop-${id}-${stage}`;
+export const villagerKey = (id: VillagerId) => `villager-${id}`;
 
 /** Génère toutes les textures pixel art du jeu. */
 export function generateTextures(textures: Phaser.Textures.TextureManager): void {
@@ -60,6 +65,10 @@ export function generateTextures(textures: Phaser.Textures.TextureManager): void
     const frames = key === 'toucan' ? [def, { palette: def.palette, rows: def.rows.map((r) => r.replace('w', 'K')) }] : [def];
     registerDef(textures, `room-${key}`, ...frames);
   }
+  for (const c of CROP_LIST) for (const st of [0, 1, 2] as const) registerDef(textures, cropKey(c.id, st), cropDef(c.id, st));
+  for (const [key, def] of Object.entries(GARDEN_SPRITES)) registerDef(textures, key, def);
+  registerDef(textures, 'keeper', ...personFrames(KEEPER_SPEC));
+  for (const v of VILLAGER_LIST) registerDef(textures, villagerKey(v.id), ...personFrames(v.look));
   // ouvriers du chantier : casque jaune et gilet orange
   WORKERS.forEach((spec, i) => registerDef(textures, `worker-${i}`, ...personFrames(spec)));
 }

@@ -3,9 +3,8 @@ import { FLOOR_H, GAME_H, GAME_W, HUD_BOTTOM, HUD_TOP, LOBBY_H, ROOM_X0, ROOM_X1
 import { BIOMES } from '../data/biomes';
 import { services } from '../services';
 import { starKey, textTexture, visitorKey } from '../sprites';
-import { discoveredCount } from '../state/GameState';
 import { happiness } from '../systems/happiness';
-import { levelForXp, requirementStatus } from '../systems/progression';
+import { requirementStatus } from '../systems/progression';
 import { visitX, VISITOR_LOOKS, type CoinDrop, type Visitor } from '../systems/visitors';
 import { capsuleTexture } from './art';
 import {
@@ -13,9 +12,12 @@ import {
 } from './building';
 import { Environment } from './Environment';
 import { TankView } from './TankView';
+import { GardenView, DESK_X } from './GardenView';
+import { Keeper, LOBBY_FEET, SHAFT_CX } from './Keeper';
+import { daysLeft, harvest, isReady, tend } from '../systems/farm';
+import { CROPS } from '../data/garden';
 
 const ROOF_H = 50;
-const SHAFT_CX = 17;
 const DOOR_X = 219;
 const CORR_L = ROOM_X0 + 8;
 const CORR_R = ROOM_X1 - 12;
@@ -30,7 +32,6 @@ interface VisitorSprites {
 }
 
 const floorFeet = (i: number) => floorTop(i) + FLOOR_H - 2;
-const LOBBY_FEET = -3;
 
 /** Position horizontale dans une salle : 1 = près de l'ascenseur (à gauche). */
 const corridorX = (f: number) => CORR_R - f * (CORR_R - CORR_L);
@@ -50,6 +51,8 @@ export class TowerScene extends Phaser.Scene {
   private night = 0;
   private bannerTimer = 0;
   private bubbleTimer = 0;
+  private keeper!: Keeper;
+  private garden!: GardenView;
 
   constructor() {
     super('Tower');
@@ -62,6 +65,9 @@ export class TowerScene extends Phaser.Scene {
     this.env = new Environment(this);
     this.night = this.env.night;
     capsuleTexture(this.textures);
+    this.garden = new GardenView(this);
+    this.keeper = new Keeper(this, DESK_X);
+    this.keeper.speed = services.sim.state.boots ? 60 : 40;
 
     this.layout();
     cam.scrollY = this.maxScroll();
@@ -84,6 +90,14 @@ export class TowerScene extends Phaser.Scene {
       sim.events.on('towerRenamed', () => this.layout()),
       sim.events.on('expeditionStarted', () => this.layout()),
       sim.events.on('expeditionDone', () => this.layout()),
+      sim.events.on('farm', () => {
+        this.garden.draw();
+        this.keeper.speed = sim.state.boots ? 60 : 40;
+      }),
+      sim.events.on('dayEnded', () => {
+        this.keeper.place(-1, DESK_X);
+        this.tweens.add({ targets: cam, scrollY: this.maxScroll(), duration: 600, ease: 'Sine.easeInOut' });
+      }),
     );
     let lastCanBuild = !!requirementStatus(sim.state)?.canBuild;
     this.unsub.push(sim.events.on('coins', () => {
@@ -97,7 +111,11 @@ export class TowerScene extends Phaser.Scene {
       services.ui.setMode('tower');
       this.tanks.forEach((t) => t.refresh());
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsub.forEach((u) => u()));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.unsub.forEach((u) => u());
+      this.keeper.destroy();
+      this.garden.destroy();
+    });
     services.ui.setMode('tower');
   }
 
@@ -168,6 +186,7 @@ export class TowerScene extends Phaser.Scene {
     }
     const buildable = status && !status.entry.comingSoon ? status : null;
     drawRoof(p, this.roofTop(), { price: buildable ? buildable.entry.req.coins : null, canBuild: !!buildable?.canBuild, name: sim.state.towerName }, this.night);
+    this.garden.draw();
     this.applyNight();
   }
 
@@ -231,6 +250,7 @@ export class TowerScene extends Phaser.Scene {
 
   private handleTap(x: number, y: number): void {
     const sim = services.sim;
+    const ui = services.ui;
     for (const [id, img] of this.drops) {
       if (Math.hypot(img.x - x, img.y - y) < 10) {
         sim.collectDrop(id);
@@ -240,30 +260,111 @@ export class TowerScene extends Phaser.Scene {
     for (const [id, vs] of this.visitors) {
       const v = sim.visitors.find((o) => o.id === id);
       if (v?.star && Math.abs(vs.body.x - x) < 9 && y < vs.body.y + 2 && y > vs.body.y - 26) {
-        if (!sim.tapStar(id)) services.ui.showStarQuote(v.star);
+        if (!sim.tapStar(id)) ui.showStarQuote(v.star);
         return;
+      }
+    }
+    const k = this.keeper;
+    const hit = this.garden.hitTest(x, y);
+    if (hit) {
+      services.audio.play('click');
+      switch (hit.kind) {
+        case 'villager': {
+          const side = k.floor === hit.floor && k.x > hit.x ? 1 : -1;
+          k.goTo(hit.floor, hit.x + side * 12, () => {
+            k.body.setFlipX(side > 0);
+            ui.openDialogue(hit.id);
+          });
+          return;
+        }
+        case 'tub':
+          k.goTo(hit.floor, hit.x - 12, () => this.tubAction(hit.floor, hit.index));
+          return;
+        case 'bin':
+          k.goTo(-1, hit.x, () => ui.openShipBin());
+          return;
+        case 'mailbox':
+          k.goTo(-1, hit.x, () => ui.openMail());
+          return;
+        case 'desk':
+          k.goTo(-1, hit.x, () => {
+            k.body.setFlipX(true);
+            ui.openDesk();
+          });
+          return;
+        case 'bassin':
+          k.goTo(-1, hit.x, () => {
+            k.body.setFrame(3);
+            ui.openBundles();
+          });
+          return;
       }
     }
     for (let i = 0; i < sim.state.floors.length; i++) {
       const top = floorTop(i);
       if (y >= top && y < top + FLOOR_H && x >= ROOM_X0) {
-        services.audio.play('bubble');
-        this.openAquarium(i);
+        const r = tankRect(top);
+        if (x >= r.x - 4 && x <= r.x + r.w + 4 && y >= r.y - 4 && y <= r.y + r.h + 12) {
+          // devant l'aquarium : on s'approche, puis on regarde de près
+          k.goTo(i, x, () => {
+            k.body.setFrame(3);
+            services.audio.play('bubble');
+            this.time.delayedCall(250, () => this.openAquarium(i));
+          });
+        } else {
+          k.goTo(i, x);
+        }
         return;
       }
     }
     const onRoofSign = y >= this.roofTop() - 24 && y < this.roofTop() + 40 && x > 80 && x < 192;
     if (this.buildTop !== null && ((y >= this.buildTop && y < this.buildTop + FLOOR_H) || onRoofSign)) {
       services.audio.play('click');
-      services.ui.openBuildPanel();
+      ui.openBuildPanel();
       return;
     }
-    if (y >= -LOBBY_H && y < 0) {
-      const s = sim.state;
-      services.ui.toast(
-        `Bienvenue ! Tour niveau ${levelForXp(s.xp)} · ${s.stats.visitors} visiteurs · ${discoveredCount(s)} espèces.`,
-      );
+    if (y >= -LOBBY_H && y < 0 && x >= ROOM_X0) k.goTo(-1, x);
+  }
+
+  /** Arrivé devant un bac : planter, soigner ou récolter. */
+  private tubAction(floor: number, index: number): void {
+    const sim = services.sim;
+    const plot = sim.state.floors[floor]?.plots[index];
+    if (!plot) return;
+    const k = this.keeper;
+    k.body.setFlipX(false);
+    const x = 96 + index * 36;
+    const y = floorTop(floor) + 80;
+    if (!plot.crop) {
+      services.ui.openPlant(floor, index);
+      return;
     }
+    const name = CROPS[plot.crop].name;
+    if (isReady(plot)) {
+      const crop = sim.farm((st) => harvest(st, floor, index));
+      if (!crop) return;
+      k.work();
+      services.audio.play('coin');
+      const pop = this.add.image(x, y, `crop-${crop}-2`).setDepth(30);
+      this.tweens.add({ targets: pop, y: y - 18, duration: 350, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: pop, x: k.x, y: k.y - 20, scale: 0.4, alpha: 0, delay: 550, duration: 400, onComplete: () => pop.destroy() });
+      services.ui.toast(`Récolte : ${name} ! Dans le sac.`, { img: `crop-${crop}-2` });
+      return;
+    }
+    if (!plot.tendedToday) {
+      sim.farm((st) => tend(st, floor, index));
+      k.work();
+      services.audio.play('bubble');
+      for (let n = 0; n < 5; n++) {
+        const d = this.add.image(x - 8 + n * 4, y - 4, 'ico-drop').setDepth(30).setScale(0.6);
+        this.tweens.add({ targets: d, y: y + 6, alpha: 0, delay: n * 60, duration: 500, onComplete: () => d.destroy() });
+      }
+      const left = daysLeft(plot);
+      services.ui.toast(`${name} soignée. ${left > 1 ? `Encore ${left} nuits.` : 'Prête demain matin !'}`, { icon: 'ico-drop' });
+      return;
+    }
+    const left = daysLeft(plot);
+    services.ui.toast(`${name} : déjà soignée aujourd’hui. ${left > 1 ? `Encore ${left} nuits.` : 'Prête demain !'}`);
   }
 
   openAquarium(i: number, zen = false): void {
@@ -471,10 +572,15 @@ export class TowerScene extends Phaser.Scene {
       this.velocity *= Math.pow(0.04, dt);
     }
     this.env.update(dt);
-    if (Math.abs(this.env.night - this.night) > 0.05) {
+    if (Math.abs(this.env.night - this.night) > 0.03) {
+      // redessin complet seulement au passage jour/nuit (fenêtres éclairées) ; sinon, simple fondu
+      const flip = this.env.night > 0.5 !== this.night > 0.5;
       this.night = this.env.night;
-      this.layout();
+      if (flip) this.layout();
+      else this.applyNight();
     }
+    this.keeper.update(dt, time);
+    this.garden.syncVillagers(time);
     const view = cam.worldView;
     this.tanks.forEach((tank, i) => {
       const top = floorTop(i);

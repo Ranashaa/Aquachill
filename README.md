@@ -19,6 +19,23 @@ Paramètres d’URL utiles pour le développement :
 - `?gallery` : affiche tous les sprites générés (page de test visuelle)
 - `?speed=10` : accélère la simulation ×10
 
+## Une journée de soigneur (inspirée de Stardew Valley)
+
+- **Ton soigneur** : touche un endroit de la tour, il y va à pied et prend l’ascenseur-bulle
+  tout seul, puis fait l’action prévue (regarder un aquarium, soigner un bac, bavarder…).
+- **Bacs de culture** au pied des aquariums : de vraies boutures (zoanthes, acropora, corail
+  champignon, cabomba, riccia, échinodorus, mousse de Java, lotus, marimo). Plante, soigne
+  une fois par jour, récolte. Rien ne fane jamais : un bac oublié attend simplement.
+- **Coffre d’expédition** dans le hall : ce que tu y déposes est vendu pendant la nuit.
+- **Calendrier** : saisons et jours, environ 13 minutes par journée. Le temps ne passe que
+  quand tu joues ; la journée se termine quand tu vas dormir au comptoir de l’accueil, avec
+  un bilan du jour. Le ciel suit l’heure du jeu (`?hour=21` pour régler l’horloge).
+- **Quatre habitués** : Marcel le pêcheur ronchon, Lila (7 ans), la Pr Gobie et Nina la
+  photographe. Bavarde avec eux, offre-leur ce qu’ils aiment : ils t’écrivent des lettres
+  (avec un petit cadeau) quand l’amitié grandit.
+- **Le Grand Bassin** du hall, vieil aquarium public en ruine, se restaure lot par lot
+  (boutures, soins, amitiés), avec des récompenses comme les bottes de soigneur.
+
 ## Contenu du MVP
 
 - **Tour scrollable** : hall d’accueil et six étages à débloquer — récif corallien,
@@ -31,7 +48,7 @@ Paramètres d’URL utiles pour le développement :
   qui ne sont pas encore venues.
 - **Une tour vivante** : bulles de pensée et photos des visiteurs, repas des poissons
   (bouton « Nourrir »), plantes qui ondulent, reflets de lumière dans l’eau, passants,
-  voitures et oiseaux, cycle jour/nuit calé sur l’heure réelle (`?hour=22` pour tester).
+  voitures et oiseaux, cycle jour/nuit calé sur l’horloge du jeu.
 - **36 vraies espèces** (6 par biome), fidèles en forme, en couleurs et en motifs, chacune
   avec une fiche : nom commun, nom scientifique, origine, taille et anecdote, plus un lien
   Wikipédia.

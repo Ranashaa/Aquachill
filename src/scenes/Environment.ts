@@ -1,14 +1,15 @@
-// Ciel, soleil/lune, étoiles, nuages et silhouette de la ville, selon l'heure réelle.
+// Ciel, soleil/lune, étoiles, nuages et silhouette de la ville, selon l'heure du jeu.
 import Phaser from 'phaser';
 import { GAME_H, GAME_W } from '../config';
-import { daylightAt, hourOf, type Daylight } from '../systems/daylight';
+import { services } from '../services';
+import { daylightAt, type Daylight } from '../systems/daylight';
+import { gameHour } from '../systems/farm';
 import { hash01 } from '../systems/rng';
 import { cloudTexture, hexToRgb, mix } from './art';
 
-/** Heure forcée par `?hour=21` (pratique pour tester), sinon heure locale. */
+/** Heure de l'horloge du jeu (`?hour=21` règle l'horloge au démarrage, pour tester). */
 export function currentHour(): number {
-  const forced = new URLSearchParams(location.search).get('hour');
-  return forced !== null && forced !== '' ? Number(forced) : hourOf(new Date());
+  return gameHour(services.sim.state);
 }
 
 interface Building {

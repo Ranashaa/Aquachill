@@ -1,6 +1,6 @@
 import { SAVE_KEY } from '../config';
 import { FISH_NAMES, PERSONALITY_LIST } from '../data/personality';
-import { createNewState, SAVE_VERSION, type GameState } from './GameState';
+import { createNewState, emptyPlots, SAVE_VERSION, type GameState } from './GameState';
 
 /** Migrations successives : MIGRATIONS[n] transforme une sauvegarde v(n) en v(n+1). */
 const MIGRATIONS: Record<number, (data: any) => any> = {
@@ -18,6 +18,11 @@ const MIGRATIONS: Record<number, (data: any) => any> = {
         fish.lastPet ??= 0;
       }
     }
+    return data;
+  },
+  // v2 → v3 : bacs de culture, calendrier, habitués (les champs globaux viennent des valeurs par défaut).
+  2: (data) => {
+    for (const floor of data.floors ?? []) floor.plots ??= emptyPlots();
     return data;
   },
 };
@@ -39,6 +44,9 @@ export function migrate(data: any): GameState {
     ...out,
     settings: { ...defaults.settings, ...out.settings },
     stats: { ...defaults.stats, ...out.stats },
+    villagers: { ...defaults.villagers, ...out.villagers },
+    counters: { ...defaults.counters, ...out.counters },
+    today: { ...defaults.today, ...out.today },
   };
 }
 

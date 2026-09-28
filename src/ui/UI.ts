@@ -24,6 +24,11 @@ import { DESTINATIONS, DESTINATIONS_BY_ID } from '../data/expeditions';
 import { hearts, PERSONALITIES } from '../data/personality';
 import { VARIANTS } from '../data/variants';
 import { minutesToNextStage, missionText, STAGE_NAMES } from '../systems/life';
+import * as farm from '../systems/farm';
+import { CROPS, CROP_LIST, type CropId } from '../data/garden';
+import { VILLAGERS, type VillagerId } from '../data/villagers';
+import { BUNDLES } from '../data/bundles';
+import { cropKey, villagerKey } from '../sprites';
 
 type Mode = 'tower' | 'aquarium' | 'zen';
 
@@ -65,6 +70,8 @@ export class UI {
   private coinText = h('span');
   private levelText = h('span');
   private xpFill = h('div');
+  private clockText = h('span');
+  private clockIcon = h('span');
 
   constructor(private root: HTMLElement) {
     root.append(this.hudTop, this.hudBottom, this.toasts);
@@ -152,6 +159,23 @@ export class UI {
       this.unread++;
       this.updateBell();
     });
+    sim.events.on('late', () => {
+      this.toast('Minuit passé… Ton soigneur bâille. Va dormir au comptoir de l’accueil.', { icon: 'ico-moon', duration: 6000 });
+    });
+    setInterval(() => this.updateClock(), 1000);
+  }
+
+  private updateClock(): void {
+    const s = services.sim.state;
+    const cal = farm.calendar(s.day.n);
+    this.clockText.textContent = `${cal.season.slice(0, 5)}. ${cal.dayOfSeason} · ${farm.clockText(s.day.minute)}`;
+    const night = farm.gameHour(s) >= 20 || farm.gameHour(s) < 6;
+    const key = night ? 'ico-moon' : 'star';
+    if (this.clockIcon.dataset.k !== key) {
+      this.clockIcon.dataset.k = key;
+      this.clockIcon.replaceChildren(sprite(key));
+    }
+    this.clockText.parentElement?.classList.toggle('late', farm.isLate(s));
   }
 
   private unread = 0;
@@ -234,7 +258,7 @@ export class UI {
       this.updateBell();
       this.hudTop.replaceChildren(
         this.coinPill(),
-        h('div', { class: 'level' }, this.levelText, h('div', { class: 'xpbar' }, this.xpFill)),
+        h('div', { class: 'pill clock', onclick: () => this.openCalendar() }, this.clockIcon, this.clockText),
         h('div', { class: 'spacer' }),
         h('button', { class: 'btn pause-btn', onclick: () => this.openPause() }, sprite('ico-leaf'), 'Pause'),
         bellBtn,
@@ -245,6 +269,7 @@ export class UI {
       const exp = sim.state.expedition;
       const missionsLeft = sim.state.missions.filter((m) => m.progress < m.target).length;
       const buttons = [
+        this.tool('ico-bag', 'Sac', () => this.openBag()),
         this.tool('book', 'Carnet', () => this.openJournal()),
         this.tool('star', 'Stars', () => this.openStarAlbum(), this.newStars.size || null),
         this.tool('ico-sub', exp ? 'En mer' : 'Sous-marin', () => this.openExpedition(), sim.state.eggs.length || null),
@@ -263,6 +288,7 @@ export class UI {
       this.renderAquariumBottom();
     }
     this.updateStats();
+    this.updateClock();
   }
 
   private canBuild = false;
@@ -1081,6 +1107,349 @@ export class UI {
       body,
       foot,
     );
+    this.open(panel, true);
+  }
+
+  // =============================================================== la journée
+
+  private heartsRow(n: number): HTMLElement {
+    return h('span', { class: 'hearts' }, '♥'.repeat(n), h('span', { class: 'off' }, '♥'.repeat(5 - n)));
+  }
+
+  /** Calendrier : saison, jour, heure et niveau de la tour. */
+  openCalendar(): void {
+    const s = services.sim.state;
+    const cal = farm.calendar(s.day.n);
+    const lp = levelProgress(s.xp);
+    const body = h('div', { class: 'panel-body' },
+      h('p', null, h('b', null, `${cal.season}, jour ${cal.dayOfSeason}`), ` · année ${cal.year} · ${farm.clockText(s.day.minute)}`),
+      h('p', { class: 'muted' }, 'Une journée dure environ 13 minutes de jeu. Rien ne presse : le temps ne passe que quand tu joues, et la journée se termine quand tu vas dormir au comptoir de l’accueil.'),
+      h('div', { class: 'section-title' }, `Tour niveau ${lp.level}`),
+      h('div', { class: 'xpbar' }, h('div', { style: `width:${Math.round(lp.ratio * 100)}%` })),
+      h('p', { class: 'muted' }, 'Chaque visiteur fait grimper le niveau de la tour.'));
+    this.open(h('div', { class: 'panel' }, this.head('Calendrier'), body), true);
+  }
+
+  /** Présentation de la vie de soigneur (une seule fois). */
+  openFarmIntro(): void {
+    const line = (icon: string, text: string) => h('div', { class: 'req' }, fit(icon, 14, 14, 2), h('div', null, text));
+    const body = h('div', { class: 'panel-body' },
+      h('p', null, 'Tu es le soigneur de la tour. Touche un endroit : tu y vas à pied, et tu prends l’ascenseur-bulle tout seul.'),
+      line('ico-sprout', 'Au pied des aquariums, des bacs de culture : plante une bouture, soigne-la une fois par jour, récolte-la.'),
+      line('shipbin', 'Dans le hall, le coffre d’expédition : ce que tu y déposes est vendu pendant la nuit.'),
+      line('villager-lila', 'Des habitués passent chaque jour. Bavarde avec eux, offre-leur ce qu’ils aiment : ils t’écriront.'),
+      line('ico-letter', 'Le vieux Grand Bassin du hall attend d’être restauré, lot par lot.'),
+      line('ico-moon', 'Quand tu veux finir la journée, va dormir au comptoir de l’accueil.'));
+    this.open(h('div', { class: 'panel' },
+      h('div', { class: 'panel-head' }, 'Une nouvelle vie à la tour'),
+      body,
+      h('div', { class: 'panel-foot' }, h('button', { class: 'btn primary', onclick: () => {
+        services.sim.state.settings.farmIntro = true;
+        this.closeModal();
+      } }, 'C’est parti !'))), true);
+  }
+
+  /** Boîte de dialogue façon Stardew avec un habitué. */
+  openDialogue(id: VillagerId): void {
+    const sim = services.sim;
+    const v = VILLAGERS[id];
+    const before = farm.villagerHearts(sim.state, id);
+    const { line, gained } = sim.farm((st) => farm.talk(st, id));
+    if (gained) services.audio.play('bubble');
+    const after = farm.villagerHearts(sim.state, id);
+    if (after > before) this.toast(`${v.name} t’apprécie de plus en plus (${after} ♥)`, { icon: 'ico-heart' });
+    this.showDialogue(id, line);
+  }
+
+  private showDialogue(id: VillagerId, text: string): void {
+    const sim = services.sim;
+    const v = VILLAGERS[id];
+    const vs = sim.state.villagers[id];
+    const textEl = h('div', { class: 'dlg-text' });
+    // texte qui s'écrit lettre après lettre
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 2;
+      textEl.textContent = text.slice(0, i);
+      if (i >= text.length) clearInterval(timer);
+    }, 30);
+    const hasItems = Object.values(sim.state.items).some((n) => (n ?? 0) > 0);
+    const foot = h('div', { class: 'dlg-actions' },
+      !vs.giftedToday && hasItems ? h('button', { class: 'btn', onclick: () => { clearInterval(timer); this.openGift(id); } }, sprite('ico-heart'), 'Offrir') : null,
+      h('button', { class: 'btn primary', onclick: () => { clearInterval(timer); this.closeModal(); } }, 'À plus tard'));
+    const panel = h('div', { class: 'panel dialogue' },
+      h('div', { class: 'dlg-row' },
+        h('div', { class: 'dlg-portrait' }, sprite(villagerKey(id), 3)),
+        h('div', { class: 'dlg-main' },
+          h('div', { class: 'dlg-name' }, h('b', null, v.name), ' ', this.heartsRow(farm.villagerHearts(sim.state, id))),
+          h('div', { class: 'muted' }, v.role),
+          textEl)),
+      foot);
+    textEl.addEventListener('click', () => { i = text.length; textEl.textContent = text; });
+    this.open(panel);
+    this.modal?.classList.add('bottom');
+  }
+
+  private openGift(id: VillagerId): void {
+    const sim = services.sim;
+    const v = VILLAGERS[id];
+    const body = h('div', { class: 'panel-body' }, h('p', { class: 'muted' }, `Que veux-tu offrir à ${v.name} ? Un cadeau par jour.`));
+    const grid = h('div', { class: 'grid' });
+    for (const [c, n] of Object.entries(sim.state.items)) {
+      if (!n) continue;
+      const crop = CROPS[c as CropId];
+      grid.append(h('button', { class: 'card', onclick: () => {
+        const before = farm.villagerHearts(sim.state, id);
+        const r = sim.farm((st) => farm.giveGift(st, id, crop.id));
+        if (!r) return;
+        services.audio.play(r.taste === 'love' ? 'levelUp' : 'coin');
+        const after = farm.villagerHearts(sim.state, id);
+        if (after > before) this.toast(`${v.name} t’apprécie de plus en plus (${after} ♥)`, { icon: 'ico-heart' });
+        this.showDialogue(id, r.reply);
+      } }, fit(cropKey(crop.id), 24, 24, 2), h('div', null, crop.name), h('div', { class: 'muted' }, `×${n}`)));
+    }
+    body.append(grid);
+    this.open(h('div', { class: 'panel' }, this.head(`Cadeau pour ${v.name}`, () => this.showDialogue(id, farm.dailyLine(sim.state, id))), body));
+  }
+
+  /** Bac vide : choisir une bouture à planter. */
+  openPlant(floor: number, index: number): void {
+    const sim = services.sim;
+    const biome = sim.state.floors[floor].biome;
+    const body = h('div', { class: 'panel-body' },
+      h('p', { class: 'muted' }, 'Plante une bouture, puis soigne-la une fois par jour : elle grandit chaque nuit. Rien ne fane jamais.'));
+    for (const crop of farm.cropsForBiome(biome)) {
+      const owned = sim.state.seeds[crop.id] ?? 0;
+      const canBuy = sim.state.coins >= crop.seedPrice;
+      body.append(h('div', { class: 'dest' },
+        fit(cropKey(crop.id), 24, 24, 2),
+        h('div', { style: 'flex:1' },
+          h('b', null, crop.name), crop.regrow ? h('span', { class: 'tag-inline' }, 'repousse') : null,
+          h('div', { class: 'muted' }, `${crop.days} nuits · se vend ${crop.sellPrice} p.`),
+          owned ? h('div', { class: 'muted' }, `Boutures dans le sac : ${owned}`) : null),
+        h('button', {
+          class: 'btn primary', disabled: !owned && !canBuy,
+          onclick: () => {
+            const r = sim.farm((st) => farm.plant(st, floor, index, crop.id));
+            if (r !== 'ok') return;
+            services.audio.play('place');
+            this.closeModal();
+            this.toast(`${crop.name} planté${crop.id === 'riccia' || crop.id === 'cabomba' || crop.id === 'mousse' ? 'e' : ''} ! Déjà soigné pour aujourd’hui.`, { img: cropKey(crop.id, 0) });
+          },
+        }, owned ? 'Planter' : `${crop.seedPrice} p.`)));
+    }
+    this.open(h('div', { class: 'panel' }, this.head('Bac de culture'), body));
+  }
+
+  /** Le sac : boutures et récoltes. */
+  openBag(): void {
+    const s = services.sim.state;
+    const body = h('div', { class: 'panel-body' });
+    const section = (title: string, list: Partial<Record<CropId, number>>, stage: 0 | 2) => {
+      const entries = Object.entries(list).filter(([, n]) => n);
+      body.append(h('div', { class: 'section-title' }, title));
+      if (!entries.length) {
+        body.append(h('p', { class: 'muted' }, stage ? 'Rien pour l’instant. Récolte tes bacs !' : 'Aucune. La pépinière du comptoir en vend.'));
+        return;
+      }
+      const grid = h('div', { class: 'grid' });
+      for (const [c, n] of entries) {
+        const crop = CROPS[c as CropId];
+        grid.append(h('button', { class: 'card', onclick: () => this.toast(crop.fact, { img: cropKey(crop.id), duration: 7000 }) },
+          fit(cropKey(crop.id, stage), 24, 24, 2), h('div', null, crop.name), h('div', { class: 'muted' }, `×${n}`)));
+      }
+      body.append(grid);
+    };
+    section('Récoltes', s.items, 2);
+    section('Boutures', s.seeds, 0);
+    body.append(h('p', { class: 'muted' }, 'Touche un objet pour lire son anecdote. Dépose tes récoltes dans le coffre du hall pour les vendre, ou offre-les aux habitués.'));
+    this.open(h('div', { class: 'panel' }, this.head('Mon sac'), body));
+  }
+
+  /** Coffre d'expédition : vendu pendant la nuit. */
+  openShipBin(): void {
+    const sim = services.sim;
+    const s = sim.state;
+    const body = h('div', { class: 'panel-body' },
+      h('p', { class: 'muted' }, 'Ce que tu déposes ici est vendu pendant la nuit. Tu peux le reprendre jusque-là.'));
+    const items = Object.entries(s.items).filter(([, n]) => n);
+    body.append(h('div', { class: 'section-title' }, 'Dans le sac'));
+    if (!items.length) body.append(h('p', { class: 'muted' }, 'Rien à expédier. Récolte tes bacs !'));
+    for (const [c, n] of items) {
+      const crop = CROPS[c as CropId];
+      body.append(h('div', { class: 'req' }, fit(cropKey(crop.id), 16, 16, 1), h('div', { style: 'flex:1' }, `${crop.name} ×${n}`, h('div', { class: 'muted' }, `${crop.sellPrice} p. pièce`)),
+        h('button', { class: 'btn small', onclick: () => { sim.farm((st) => farm.ship(st, crop.id, 1)); services.audio.play('place'); this.openShipBin(); } }, '+1'),
+        h('button', { class: 'btn small', onclick: () => { sim.farm((st) => farm.ship(st, crop.id, n!)); services.audio.play('place'); this.openShipBin(); } }, 'Tout')));
+    }
+    const bin = Object.entries(s.shipBin).filter(([, n]) => n);
+    if (bin.length) {
+      body.append(h('div', { class: 'section-title' }, 'Dans le coffre'));
+      for (const [c, n] of bin) {
+        const crop = CROPS[c as CropId];
+        body.append(h('div', { class: 'req' }, fit(cropKey(crop.id), 16, 16, 1), h('div', { style: 'flex:1' }, `${crop.name} ×${n}`),
+          h('button', { class: 'btn small', onclick: () => { sim.farm((st) => farm.unship(st, crop.id)); this.openShipBin(); } }, 'Reprendre')));
+      }
+    }
+    body.append(h('div', { class: 'req' }, sprite('coin'), h('b', null, `Cette nuit : ${farm.binValue(s)} pièces`)));
+    this.open(h('div', { class: 'panel' }, this.head('Coffre d’expédition'), body));
+  }
+
+  /** Comptoir de l'accueil : pépinière, sac et dodo. */
+  openDesk(): void {
+    const s = services.sim.state;
+    const hour = farm.gameHour(s);
+    const greet = hour < 11 ? 'Bonjour ! Belle journée pour les poissons.' : hour < 18 ? 'Bon après-midi ! Tout roule à la tour.' : hour < 24 && hour >= 18 ? 'Bonsoir ! Les lumières des aquariums sont jolies, à cette heure-ci.' : 'Il est tard… Tu devrais aller te coucher, non ?';
+    const body = h('div', { class: 'panel-body' },
+      h('div', { class: 'req' }, fit('visitor-5', 20, 26, 2), h('div', null, h('b', null, 'Josette, à l’accueil'), h('div', null, `« ${greet} »`))),
+      h('div', { class: 'choices' },
+        h('button', { class: 'choice', onclick: () => this.openNursery() }, fit('ico-sprout', 12, 12, 2), ' Pépinière (boutures)'),
+        h('button', { class: 'choice', onclick: () => this.openBag() }, fit('ico-bag', 12, 12, 2), ' Mon sac'),
+        h('button', { class: 'choice', onclick: () => this.openMail() }, fit('ico-letter', 12, 12, 2), ' Courrier'),
+        h('button', { class: 'choice', onclick: () => this.goToSleep() }, fit('ico-moon', 12, 12, 2), ` Aller dormir (il est ${farm.clockText(s.day.minute)})`)));
+    this.open(h('div', { class: 'panel' }, this.head('Comptoir d’accueil'), body));
+  }
+
+  openNursery(): void {
+    const sim = services.sim;
+    const biomes = new Set(sim.state.floors.map((f) => f.biome));
+    const body = h('div', { class: 'panel-body' },
+      h('p', { class: 'muted' }, 'De vraies boutures de coraux et de plantes, pour les bacs de tes étages.'));
+    for (const crop of CROP_LIST.filter((c) => biomes.has(c.biome))) {
+      const owned = sim.state.seeds[crop.id] ?? 0;
+      body.append(h('div', { class: 'dest' },
+        fit(cropKey(crop.id), 24, 24, 2),
+        h('div', { style: 'flex:1' },
+          h('b', null, crop.name), crop.regrow ? h('span', { class: 'tag-inline' }, 'repousse') : null,
+          h('div', { class: 'muted' }, `${BIOMES[crop.biome].name} · ${crop.days} nuits · se vend ${crop.sellPrice} p.`),
+          owned ? h('div', { class: 'muted' }, `Dans le sac : ${owned}`) : null),
+        h('button', {
+          class: 'btn primary', disabled: sim.state.coins < crop.seedPrice,
+          onclick: () => {
+            if (sim.farm((st) => farm.buySeeds(st, crop.id))) {
+              services.audio.play('coin');
+              this.openNursery();
+            }
+          },
+        }, `${crop.seedPrice} p.`)));
+    }
+    const locked = CROP_LIST.filter((c) => !biomes.has(c.biome)).length;
+    if (locked) body.append(h('p', { class: 'muted' }, `${locked} autres boutures arriveront avec de nouveaux étages.`));
+    this.open(h('div', { class: 'panel' }, this.head('Pépinière', () => this.openDesk()), body));
+  }
+
+  openMail(): void {
+    const sim = services.sim;
+    const mail = sim.state.mail;
+    const body = h('div', { class: 'panel-body' });
+    if (!mail.length) body.append(h('p', { class: 'muted' }, 'La boîte est vide. Les habitués écrivent quand ils t’apprécient.'));
+    mail.forEach((m, i) => {
+      const v = VILLAGERS[m.from];
+      body.append(h('button', { class: 'choice', onclick: () => this.openLetter(i) },
+        fit(villagerKey(m.from), 14, 18, 1), ` ${m.read ? '' : '✉ '}Lettre de ${v.name}`, h('span', { class: 'muted' }, ` · jour ${m.day}`)));
+    });
+    this.open(h('div', { class: 'panel' }, this.head('Courrier'), body));
+  }
+
+  private openLetter(index: number): void {
+    const sim = services.sim;
+    const m = sim.state.mail[index];
+    const letter = VILLAGERS[m.from].letters[m.hearts];
+    const gift = sim.farm((st) => farm.readLetter(st, index));
+    if (gift) services.audio.play('levelUp');
+    const body = h('div', { class: 'panel-body' },
+      h('div', { class: 'postcard letter' }, letter.text),
+      gift?.seeds ? h('div', { class: 'req' }, fit(cropKey(gift.seeds, 0), 16, 16, 1), `Joint à la lettre : 1 bouture de ${CROPS[gift.seeds].name}`) : null,
+      gift?.coins ? h('div', { class: 'req' }, sprite('coin'), `Joint à la lettre : ${gift.coins} pièces`) : null);
+    this.open(h('div', { class: 'panel' }, this.head(`Lettre de ${VILLAGERS[m.from].name}`, () => this.openMail()), body));
+  }
+
+  /** Le Grand Bassin et ses lots. */
+  openBundles(): void {
+    const sim = services.sim;
+    const s = sim.state;
+    const done = farm.bundlesDone(s);
+    const body = h('div', { class: 'panel-body' },
+      h('p', null, done >= 3
+        ? 'Le Grand Bassin brille à nouveau. Les habitués disent que c’est le plus bel aquarium de la ville.'
+        : 'Ce vieil aquarium public dort derrière ses planches. Chaque lot rendu le fait revivre un peu.'));
+    for (const b of BUNDLES) {
+      const prog = farm.bundleProgress(s, b.id);
+      const finished = !!s.bundles[b.id]?.done;
+      const card = h('div', { class: 'mission' },
+        h('div', null, h('b', null, b.name), finished ? h('span', { class: 'tag-inline' }, 'restauré') : null),
+        h('div', { class: 'muted' }, b.blurb));
+      for (const p of prog) {
+        const r = p.req;
+        const label = r.kind === 'item' ? `${CROPS[r.crop].name}` : r.kind === 'counter' ? r.label : `Habitués à ${r.hearts} ♥`;
+        const give = r.kind === 'item' && !p.done && (s.items[r.crop] ?? 0) > 0
+          ? h('button', { class: 'btn small', onclick: () => {
+            if (sim.farm((st) => farm.giveToBundle(st, b.id, r.crop))) services.audio.play('place');
+            this.openBundles();
+          } }, 'Déposer')
+          : null;
+        card.append(h('div', { class: 'req' },
+          r.kind === 'item' ? fit(cropKey(r.crop), 14, 14, 1) : null,
+          h('span', { class: p.done ? 'ok' : 'ko' }, p.done ? '✔' : '·'),
+          h('div', { style: 'flex:1' }, `${label} ${p.have}/${p.need}`), give));
+      }
+      card.append(h('div', { class: 'muted' }, `Récompense : ${b.rewardText}`));
+      if (farm.bundleReady(s, b.id)) {
+        card.append(h('button', { class: 'btn primary', onclick: () => {
+          if (!sim.farm((st) => farm.completeBundle(st, b.id))) return;
+          services.audio.play('levelUp');
+          sim.addNews(`Le Grand Bassin revit un peu plus : ${b.name} terminé !`, 'sparkle');
+          this.toast(`${b.name} terminé ! ${b.rewardText}.`, { icon: 'sparkle', duration: 6000 });
+          this.openBundles();
+        } }, 'Terminer le lot'));
+      }
+      body.append(card);
+    }
+    this.open(h('div', { class: 'panel' }, this.head(`Grand Bassin ${done}/3`), body));
+  }
+
+  /** Fin de journée : fondu, bilan, puis nouveau matin. */
+  goToSleep(): void {
+    this.closeModal();
+    const fade = h('div', { class: 'night-fade' });
+    this.root.append(fade);
+    services.audio.play('chime');
+    setTimeout(() => {
+      const recap = services.sim.sleep();
+      this.openRecap(recap, () => {
+        fade.classList.add('out');
+        setTimeout(() => fade.remove(), 900);
+      });
+    }, 900);
+  }
+
+  private openRecap(r: farm.DayRecap, onClose: () => void): void {
+    const s = services.sim.state;
+    const cal = farm.calendar(s.day.n);
+    const line = (icon: string, text: string) => h('div', { class: 'req' }, fit(icon, 14, 14, 1), h('div', null, text));
+    const body = h('div', { class: 'panel-body' });
+    if (r.shipped.length) {
+      for (const it of r.shipped) body.append(line(cropKey(it.crop), `${CROPS[it.crop].name} ×${it.qty} … ${it.coins} p.`));
+      body.append(line('coin', `Expédition : ${r.shipTotal} pièces`));
+    } else {
+      body.append(h('p', { class: 'muted' }, 'Rien dans le coffre ce soir. Ce n’est pas grave !'));
+    }
+    body.append(...[
+      line('coin', `Pièces gagnées dans la journée : ${r.dayCoins}`),
+      line('fishicon', `Visiteurs accueillis : ${r.visitors}`),
+      r.tended ? line('ico-drop', `Boutures soignées : ${r.tended}`) : null,
+      r.grown ? line('ico-sprout', `${r.grown} bouture${r.grown > 1 ? 's ont' : ' a'} grandi cette nuit${r.ready ? `, ${r.ready} prête${r.ready > 1 ? 's' : ''} à récolter` : ''}`) : null,
+      ...r.letters.map((id) => line('ico-letter', `${VILLAGERS[id].name} t’a écrit une lettre !`)),
+    ].filter((x): x is HTMLDivElement => !!x));
+    const panel = h('div', { class: 'panel recap' },
+      h('div', { class: 'panel-head' }, `Fin du jour ${r.day}`),
+      body,
+      h('div', { class: 'panel-foot' }, h('button', { class: 'btn primary', onclick: () => {
+        this.closeModal();
+        onClose();
+        services.audio.play('bubble');
+        this.toast(`${cal.season}, jour ${cal.dayOfSeason}. Bonjour !`, { icon: 'star', duration: 4000 });
+        if (r.letters.length) this.toast('Du courrier t’attend dans la boîte aux lettres du hall.', { icon: 'ico-letter', duration: 6000, onClick: () => this.openMail() });
+      } }, 'Bonne nuit')));
     this.open(panel, true);
   }
 

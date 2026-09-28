@@ -1,0 +1,228 @@
+// Boutures (3 stades), bac de culture, coffre d'expédition, boîte aux lettres,
+// soigneur et icônes du jardin.
+import { CROPS, type CropId } from '../../data/garden';
+import type { SpriteDef } from '../SpriteFactory';
+import type { PersonSpec } from './people';
+
+// m principale · s ombre · t pointe (seulement une fois prête) · g/G vert (feuilles du lotus)
+const SHAPES: Record<CropId, string[]> = {
+  zoanthus: [
+    '............',
+    '............',
+    '............',
+    '..t....t....',
+    '.tmt..tmt.t.',
+    '.msm..msmtmt',
+    '..s.t..s.msm',
+    '.t.tmt.s..s.',
+    'tmtmsm.s.tmt',
+    'msm.s.ss.msm',
+    '.s..s.s...s.',
+    '.ss.sss..ss.',
+  ],
+  acropora: [
+    '..t.....t...',
+    '..m..t..m...',
+    '..m..m..m.t.',
+    '.tm..m.sm.m.',
+    '..ms.m.m..m.',
+    '...m.msm.sm.',
+    '...smm.m.m..',
+    '....smmmsm..',
+    '.....smms...',
+    '......mm....',
+    '......ms....',
+    '.....smms...',
+  ],
+  champignon: [
+    '............',
+    '............',
+    '............',
+    '............',
+    '...tttttt...',
+    '..tmmtmmmt..',
+    '.tmmsmmsmmt.',
+    '.mmmmmmmmmm.',
+    '.smmsmmmsms.',
+    '..ssmmmmss..',
+    '....ssss....',
+    '....ssss....',
+  ],
+  cabomba: [
+    '..t.t..t.t..',
+    '.tmt...tmt..',
+    '..m.t.t.m...',
+    '.mm.mtm.mm..',
+    '..msm.msm...',
+    '.t.m...m.t..',
+    '.mmm.t.mmm..',
+    '..sm.m.ms...',
+    '...mmmmm....',
+    '....smm.....',
+    '.....m......',
+    '.....s......',
+  ],
+  riccia: [
+    '............',
+    '............',
+    '............',
+    '............',
+    '............',
+    '............',
+    '..t..t...t..',
+    '.tmtmmt.tmt.',
+    '.mmsmmmmmsm.',
+    'msmmsmsmmmsm',
+    '.ssmssmsssm.',
+    '..ss.ss.ss..',
+  ],
+  echinodorus: [
+    '.....t......',
+    '....tm...t..',
+    '.t..mm..tm..',
+    '.mt.ms..mm..',
+    '.mm.ms.mms..',
+    '..ms.mmms...',
+    '..mm.mms..t.',
+    '...mmmsm.tm.',
+    '.t.smms.mm..',
+    '.mm.mmsms...',
+    '..smmmms....',
+    '....sms.....',
+  ],
+  mousse: [
+    '............',
+    '............',
+    '............',
+    '............',
+    '............',
+    '..t.....t...',
+    '.tmt.t.tmt..',
+    '.msmtmtmsm..',
+    'mmsmmsmmmsm.',
+    'msmsmmmsmmsm',
+    '.ssmssmssms.',
+    '..sss.sss...',
+  ],
+  lotus: [
+    '............',
+    '............',
+    '....t.t.....',
+    '...tmtmt....',
+    '...mmtmm....',
+    '....mms.....',
+    '.....g......',
+    '.....G......',
+    '.....g......',
+    '..ggggggg...',
+    '.gGgggggGg..',
+    '..GGGGGGG...',
+  ],
+  marimo: [
+    '............',
+    '............',
+    '............',
+    '............',
+    '....tmmm....',
+    '..tmmmmmmm..',
+    '..mmmsmmmm..',
+    '.mmsmmmmsmm.',
+    '.mmmmmsmmmm.',
+    '.smmsmmmmss.',
+    '..ssmmmmss..',
+    '....ssss....',
+  ],
+};
+
+/** Stade 0 : seulement le bas de la plante ; stade 1 : les deux tiers ; stade 2 : entière, avec ses pointes. */
+export function cropDef(id: CropId, stage: 0 | 1 | 2): SpriteDef {
+  const [m, s, t] = CROPS[id].colors;
+  const cut = [6, 3, 0][stage];
+  const rows = SHAPES[id].map((r, y) => (y < cut ? '.'.repeat(r.length) : stage < 2 ? r.replace(/t/g, 'm') : r));
+  return { palette: { m, s, t, g: '#5ab04a', G: '#3a8a3a' }, rows };
+}
+
+/** Bac en pierre bleue, cerclé de laiton ; 2e image : eau trouble (à soigner). */
+const TUB_ROWS = [
+  'oooooooooooooooooooooo',
+  'oKKKKKKKKKKKKKKKKKKKKo',
+  'owwwWwwwwwwwwwWwwwwwwo',
+  'oBBBBBBBBBBBBBBBBBBBBo',
+  'oBbBBBBBBBBBBBBBBBBbBo',
+  'oBBBBBBBBBBBBBBBBBBBBo',
+  'obbbbbbbbbbbbbbbbbbbbo',
+  '.oooooooooooooooooooo.',
+];
+const TUB_PAL = { o: '#2b2238', K: '#e0b048', w: '#7ad8ee', W: '#e8fbff', B: '#6a86b8', b: '#4a5a8a' };
+
+export const GARDEN_SPRITES: Record<string, SpriteDef> = {
+  tub: { palette: TUB_PAL, rows: TUB_ROWS },
+  'tub-dry': { palette: { ...TUB_PAL, w: '#9aa878', W: '#c8d0a0' }, rows: TUB_ROWS },
+  shipbin: {
+    palette: { o: '#2b2238', K: '#e0b048', W: '#c88a4a', w: '#a86a34' },
+    rows: [
+      '.oooooooooooooo.',
+      'oKKKKKKKKKKKKKKo',
+      'oWWWWWWWWWWWWWWo',
+      'oWwwwwwwwwwwwwWo',
+      'oooooooooooooooo',
+      'oWWWWWWKKWWWWWWo',
+      'oWwwwwwKKwwwwwwo',
+      'oWwwwwwwwwwwwwWo',
+      'oWwwwwwwwwwwwwWo',
+      'oKwwwwwwwwwwwwKo',
+      'oooooooooooooooo',
+    ],
+  },
+  mailbox: {
+    palette: { o: '#2b2238', R: '#3a8ad8', r: '#2a6ab0', W: '#ffffff', P: '#6a6488' },
+    rows: [
+      '..ooooo...',
+      '.oRRRRRo..',
+      'oRRRRRRRo.',
+      'oRoooooRo.',
+      'oRoWWWoRo.',
+      'oRoooooRo.',
+      'oRRRRRRro.',
+      'orrrrrrro.',
+      'ooooooooo.',
+      '...oPo....',
+      '...oPo....',
+      '...oPo....',
+      '...oPo....',
+      '..ooooo...',
+    ],
+  },
+  'mailbox-flag': {
+    palette: { o: '#2b2238', R: '#3a8ad8', r: '#2a6ab0', W: '#ffffff', P: '#6a6488', Y: '#ffd23a' },
+    rows: [
+      '..ooooo.oo',
+      '.oRRRRRoYY',
+      'oRRRRRRRoY',
+      'oRoooooRoo',
+      'oRoWWWoRo.',
+      'oRoooooRo.',
+      'oRRRRRRro.',
+      'orrrrrrro.',
+      'ooooooooo.',
+      '...oPo....',
+      '...oPo....',
+      '...oPo....',
+      '...oPo....',
+      '..ooooo...',
+    ],
+  },
+  'ico-drop': { palette: { b: '#3ab8f0', W: '#e8fbff', o: '#1f6fa8' }, rows: ['..o..', '.obo.', 'obWbo', 'obbbo', '.ooo.'] },
+  'ico-bag': {
+    palette: { o: '#2b2238', b: '#c88a4a', B: '#e8b070', k: '#e0b048' },
+    rows: ['..ooo..', '.o...o.', 'ooooooo', 'oBBkBBo', 'obbbbbo', 'obbbbbo', '.ooooo.'],
+  },
+  'ico-moon': { palette: { y: '#ffe08a', Y: '#fff6c8' }, rows: ['..yy.', '.yY..', 'yY...', 'yY...', '.yY..', '..yyy'] },
+  'ico-letter': { palette: { o: '#2b2238', W: '#ffffff', r: '#e8453c' }, rows: ['ooooooo', 'oWoWoWo', 'oWWoWWo', 'oWWrWWo', 'ooooooo'] },
+  'ico-sprout': { palette: { g: '#6fcf5a', G: '#3f8f3a', b: '#8a5a34' }, rows: ['g...g', 'gg.gg', '.gGg.', '..G..', 'bbbbb'] },
+};
+
+/** Le soigneur (toi !) : casquette et tenue turquoise. */
+export const KEEPER_SPEC: PersonSpec = {
+  skin: '#f0c29a', hair: '#6a3a22', hairStyle: 'cap', cap: '#2a9a9a', shirt: '#3ab0c0', pants: '#3a4a6a', shoes: '#5a3a2a',
+};
