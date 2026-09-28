@@ -17,6 +17,7 @@ import { cleanReward, estimatedIncomeRate, floorAppeal, maxVisitors, spawnInterv
 import { Emitter } from './Emitter';
 import { levelForXp, requirementStatus } from './progression';
 import { hash01, pick, pickWeighted, type Rng } from './rng';
+import * as farm from './farm';
 import { breedingPair, expeditionFind, newFish, refillMissions, stageAt } from './life';
 import {
   maybePickStar, nextPhase, phaseDuration, visitSpots, VISITOR_LOOKS,
@@ -47,6 +48,10 @@ export type SimEvents = {
   missionsChanged: Mission[];
   news: NewsItem;
   towerRenamed: string;
+  /** Bacs, sac, coffre, habitués ou lots ont changé. */
+  farm: void;
+  dayEnded: farm.DayRecap;
+  late: void;
 };
 
 export interface IdentifyResult {
@@ -98,6 +103,9 @@ export class Sim {
 
   update(dt: number): void {
     const s = this.state;
+    const wasLate = farm.isLate(s);
+    farm.tickClock(s, dt);
+    if (!wasLate && farm.isLate(s)) this.events.emit('late', undefined);
     const discovered = this.discoveredSet();
     s.floors.forEach((floor, i) => {
       growAlgae(floor, dt, i);
@@ -181,6 +189,7 @@ export class Sim {
     const floor = this.state.floors[v.floor];
     if (!floor) return;
     this.state.stats.visitors++;
+    this.state.today.visitors++;
     this.progress('visitors');
     this.addXp(v.star ? XP.starVisit : XP.visit);
     const amount = visitIncome(floor) * (v.star ? 3 : 1);
@@ -200,7 +209,10 @@ export class Sim {
 
   addCoins(n: number): void {
     this.state.coins += n;
-    if (n > 0) this.state.stats.coinsEarned += n;
+    if (n > 0) {
+      this.state.stats.coinsEarned += n;
+      this.state.today.coins += n;
+    }
     this.events.emit('coins', this.state.coins);
   }
 
@@ -418,6 +430,7 @@ export class Sim {
     for (const fish of this.state.floors[floorIndex]?.fish ?? []) {
       if (fish.stage !== 'egg') fish.friendship = Math.min(100, fish.friendship + 2);
     }
+    this.state.counters.feed++;
     this.progress('feed');
   }
 
@@ -523,6 +536,25 @@ export class Sim {
     this.events.emit('floorBuilt', idx);
     this.save();
     return true;
+  }
+
+  // ------------------------------------------------------- jardin & journée
+
+  /** Applique une action du jardin puis prévient l'affichage. */
+  farm<T>(action: (state: GameState) => T): T {
+    const out = action(this.state);
+    this.events.emit('coins', this.state.coins);
+    this.events.emit('farm', undefined);
+    return out;
+  }
+
+  sleep(): farm.DayRecap {
+    const recap = farm.endDay(this.state);
+    if (recap.shipTotal > 0) this.events.emit('coins', this.state.coins);
+    this.events.emit('dayEnded', recap);
+    this.events.emit('farm', undefined);
+    this.save();
+    return recap;
   }
 
   starName(id: StarId): string {
