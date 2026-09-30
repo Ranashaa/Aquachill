@@ -6,6 +6,8 @@ import { AudioEngine } from './audio/AudioEngine';
 import { GAME_H, GAME_W, UI_W } from './config';
 import { AquariumScene } from './scenes/AquariumScene';
 import { BootScene } from './scenes/BootScene';
+import { CoveScene } from './cove/CoveScene';
+import './cove/cove.css';
 import { TowerScene } from './scenes/TowerScene';
 import { services } from './services';
 import { createNewState } from './state/GameState';
@@ -22,74 +24,89 @@ function updatePixelSize(): void {
 updatePixelSize();
 window.addEventListener('resize', updatePixelSize);
 
-const state = loadGame() ?? createNewState();
-const sim = new Sim(state);
-services.sim = sim;
-services.audio = new AudioEngine(state.settings.muted, state.settings.ambience);
-const lastSeen = state.savedAt;
-const forcedHour = new URLSearchParams(location.search).get('hour');
-if (forcedHour) state.day.minute = ((Number(forcedHour) + 18) % 24 + 6) * 60;
-const offline = sim.applyOffline();
-
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: 'game',
-  width: GAME_W,
-  height: GAME_H,
-  pixelArt: true,
-  backgroundColor: '#bfe8f2',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER },
-  input: { activePointers: 2 },
-  scene: [BootScene, TowerScene, AquariumScene],
-});
-services.game = game;
-
 const params = new URLSearchParams(location.search);
-const isGallery = params.has('gallery');
-/** `?speed=10` accélère la simulation (pratique pour tester). */
-const speed = Math.max(1, Number(params.get('speed')) || 1);
-if (!isGallery) {
-  services.ui = new UI(uiRoot);
-
-  // La simulation avance à chaque image, quelle que soit la scène affichée.
-  game.events.on(Phaser.Core.Events.STEP, (_time: number, delta: number) => {
-    sim.update((Math.min(delta, 250) / 1000) * speed);
+if (params.has('crique')) {
+  // maquette de la crique vue de dessus
+  const audio = new AudioEngine(false, 'waves');
+  const cove = new Phaser.Game({
+    type: Phaser.AUTO, parent: 'game', width: GAME_W, height: GAME_H, pixelArt: true, backgroundColor: '#2a78b4',
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER }, scene: [new CoveScene(audio)],
   });
+  document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+  if (import.meta.env.DEV) (window as any).cove = cove;
+} else {
+  startTower();
+}
 
-  game.events.once(Phaser.Core.Events.READY, () => {
-    if (!state.tutorialDone) {
-      services.ui.openWelcome(() => {
-        state.tutorialDone = true;
-        sim.save();
+function startTower(): void {
+  const state = loadGame() ?? createNewState();
+  const sim = new Sim(state);
+  services.sim = sim;
+  services.audio = new AudioEngine(state.settings.muted, state.settings.ambience);
+  const lastSeen = state.savedAt;
+  const forcedHour = new URLSearchParams(location.search).get('hour');
+  if (forcedHour) state.day.minute = ((Number(forcedHour) + 18) % 24 + 6) * 60;
+  const offline = sim.applyOffline();
+
+  const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'game',
+    width: GAME_W,
+    height: GAME_H,
+    pixelArt: true,
+    backgroundColor: '#bfe8f2',
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER },
+    input: { activePointers: 2 },
+    scene: [BootScene, TowerScene, AquariumScene],
+  });
+  services.game = game;
+
+  const isGallery = params.has('gallery');
+  /** `?speed=10` accélère la simulation (pratique pour tester). */
+  const speed = Math.max(1, Number(params.get('speed')) || 1);
+  if (!isGallery) {
+    services.ui = new UI(uiRoot);
+
+    // La simulation avance à chaque image, quelle que soit la scène affichée.
+    game.events.on(Phaser.Core.Events.STEP, (_time: number, delta: number) => {
+      sim.update((Math.min(delta, 250) / 1000) * speed);
+    });
+
+    game.events.once(Phaser.Core.Events.READY, () => {
+      if (!state.tutorialDone) {
+        services.ui.openWelcome(() => {
+          state.tutorialDone = true;
+          sim.save();
+          services.ui.openFarmIntro();
+        });
+      } else if (!state.settings.farmIntro) {
         services.ui.openFarmIntro();
-      });
-    } else if (!state.settings.farmIntro) {
-      services.ui.openFarmIntro();
-    } else if (params.has('pause')) {
-      // raccourci « pause » : ?pause=5 ouvre directement une pause de 5 minutes
-      const minutes = Math.min(30, Math.max(1, Number(params.get('pause')) || 5));
-      const amb = state.settings.ambience === 'music' ? 'waves' : state.settings.ambience;
-      setTimeout(() => services.ui.startPause(minutes, Math.min(state.settings.favoriteFloor, state.floors.length - 1), amb), 800);
-    } else if (offline.seconds >= 120) {
-      services.ui.openReturnSummary(lastSeen, offline.coins, offline.arrivals);
-    }
-  });
+      } else if (params.has('pause')) {
+        // raccourci « pause » : ?pause=5 ouvre directement une pause de 5 minutes
+        const minutes = Math.min(30, Math.max(1, Number(params.get('pause')) || 5));
+        const amb = state.settings.ambience === 'music' ? 'waves' : state.settings.ambience;
+        setTimeout(() => services.ui.startPause(minutes, Math.min(state.settings.favoriteFloor, state.floors.length - 1), amb), 800);
+      } else if (offline.seconds >= 120) {
+        services.ui.openReturnSummary(lastSeen, offline.coins, offline.arrivals);
+      }
+    });
 
-  // Pause / reprise : on sauvegarde en partant, on rattrape le temps au retour.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      sim.save();
-      services.audio.suspend();
-    } else {
-      const since = state.savedAt;
-      const back = sim.applyOffline();
-      services.audio.resume();
-      if (back.seconds >= 120 && !services.ui.isModalOpen) services.ui.openReturnSummary(since, back.coins, back.arrivals);
-    }
-  });
-  window.addEventListener('beforeunload', saveOnUnload);
-  window.addEventListener('pagehide', saveOnUnload);
-  document.addEventListener('pointerdown', () => services.audio.unlock(), { once: true });
+    // Pause / reprise : on sauvegarde en partant, on rattrape le temps au retour.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        sim.save();
+        services.audio.suspend();
+      } else {
+        const since = state.savedAt;
+        const back = sim.applyOffline();
+        services.audio.resume();
+        if (back.seconds >= 120 && !services.ui.isModalOpen) services.ui.openReturnSummary(since, back.coins, back.arrivals);
+      }
+    });
+    window.addEventListener('beforeunload', saveOnUnload);
+    window.addEventListener('pagehide', saveOnUnload);
+    document.addEventListener('pointerdown', () => services.audio.unlock(), { once: true });
+  }
 }
 
 // Accès de débogage en développement : window.aquachill.sim, etc.
