@@ -748,3 +748,75 @@ export function aquariumHall(): Raster {
   r.draw(s, 0, 0);
   return r;
 }
+
+/** La buvette d'Élio : cabane en bois, auvent rayé, pains et croissants sur le comptoir. */
+export function kiosk(): Raster {
+  const r = new Raster(44, 40);
+  r.shadow(22, 37, 21, 3, 0.3);
+  const s = new Raster(44, 40);
+  const W = ['#6a4028', '#8a5634', '#aa7044', '#c88c58'].map(hex);
+  for (let y = 14; y < 36; y++) for (let x = 3; x < 41; x++) s.set(x, y, (x - 3) % 6 === 0 ? W[0] : ramp(W, 0.6 - x / 90, x, y, 0.2));
+  // comptoir et viennoiseries
+  for (let x = 1; x < 43; x++) {
+    s.set(x, 24, W[3]);
+    s.set(x, 25, W[2]);
+    s.set(x, 26, W[0]);
+  }
+  for (let k = 0; k < 4; k++) {
+    const bx = 5 + k * 9;
+    s.ellipse(bx + 3, 22, 3.5, 1.8, (_nx, ny) => (ny < -0.2 ? hex('#f0c070') : hex('#c88a3a')));
+    if (k % 2) for (let j = 0; j < 3; j++) s.set(bx + 1 + j * 2, 21, hex('#a86a2a'));
+  }
+  // fenêtre de service sombre
+  for (let y = 15; y < 22; y++) for (let x = 6; x < 38; x++) if (s.get(x, y) !== W[0]) s.set(x, y, mixRGB(hex('#3a2418'), hex('#6a4028'), (y - 15) / 7));
+  // auvent rayé festonné
+  for (let y = 4; y < 14; y++) {
+    for (let x = 0; x < 44; x++) {
+      const stripe = Math.floor(x / 5) % 2 === 0;
+      const fest = y === 13 && x % 5 === 2;
+      if (y === 13 && !fest && x % 5 !== 1 && x % 5 !== 3) continue;
+      s.set(x, y, stripe ? (y < 6 ? hex('#ff8a7a') : hex('#e8584a')) : (y < 6 ? 0xffffff : hex('#f4ece0')));
+    }
+  }
+  // enseigne
+  s.rect(14, 0, 16, 5, hex('#fff4dc'));
+  s.rect(15, 2, 3, 1, hex('#c88a3a'));
+  s.rect(20, 2, 4, 1, hex('#c88a3a'));
+  s.rect(26, 2, 2, 1, hex('#c88a3a'));
+  s.outline(hex('#241a1e'));
+  r.draw(s, 0, 0);
+  return r;
+}
+
+/** Le phare de Camille : tour blanche à bandes rouges, lanterne vitrée, galerie. */
+export function lighthouse(): Raster {
+  const W = 30;
+  const H = 76;
+  const r = new Raster(W, H);
+  r.shadow(15, 72, 14, 4, 0.3);
+  const s = new Raster(W, H);
+  for (let y = 18; y < 72; y++) {
+    const half = 7 + (y - 18) * 0.12;
+    for (let x = Math.round(15 - half); x <= Math.round(15 + half); x++) {
+      const nx = (x - 15) / half;
+      const band = Math.floor((y - 18) / 9) % 2 === 1;
+      const base = band ? ['#8a1a2a', '#c02a3a', '#e84a4a', '#ff7a6a'].map(hex) : ['#a8a8b8', '#d0d0dc', '#f0f0f4', '#ffffff'].map(hex);
+      s.set(x, y, ramp(base, 0.7 - nx * 0.45, x, y, 0.2));
+    }
+  }
+  // porte et hublot
+  for (let y = 60; y < 72; y++) for (let x = 12; x < 18; x++) s.set(x, y, y === 60 ? hex('#3a2418') : hex('#5a3a24'));
+  s.ellipse(15, 40, 2, 2, hex('#ffe08a'));
+  // galerie, lanterne et dôme
+  s.rect(4, 16, 22, 3, hex('#2a2a34'));
+  for (let x = 5; x < 25; x += 3) s.rect(x, 12, 1, 4, hex('#2a2a34'));
+  s.rect(4, 12, 22, 1, hex('#2a2a34'));
+  s.rect(9, 6, 12, 10, hex('#fff0a0'));
+  s.rect(10, 7, 3, 8, 0xffffff);
+  s.rect(14, 6, 1, 10, hex('#2a2a34'));
+  s.ellipse(15, 5, 7, 4, (nx, ny) => (ny > 0.4 ? null : nx < -0.2 ? hex('#e84a4a') : hex('#a01a2a')));
+  s.set(15, 0, hex('#2a2a34'));
+  s.outline(hex('#241a24'));
+  r.draw(s, 0, 0);
+  return r;
+}

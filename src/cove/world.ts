@@ -4,7 +4,7 @@ import { AQUARIUM, baseWalkable, COLS, HOUSE, MAP_ROWS, PIER, ROWS, TILE } from 
 
 export interface Prop {
   kind: 'oak' | 'autumn' | 'pine' | 'bush' | 'berry' | 'rock' | 'bigrock' | 'reeds' | 'lily' | 'lilyflower' | 'flowers'
-    | 'cottage' | 'pier' | 'fence' | 'mailbox' | 'bench' | 'boat' | 'lantern' | 'bin' | 'stand' | 'aquarium';
+    | 'cottage' | 'pier' | 'fence' | 'mailbox' | 'bench' | 'boat' | 'lantern' | 'bin' | 'stand' | 'aquarium' | 'kiosk' | 'lighthouse';
   /** Position du pied de l'objet (origine bas-centre), en px. */
   x: number;
   y: number;
@@ -49,7 +49,7 @@ export function buildWorld(): World {
   for (const [tx, ty] of [[6, 18], [23, 5], [30, 24], [11, 25], [25, 12]]) props.push({ kind: 'flowers', x: tx * TILE + 8, y: ty * TILE + 12, seed: tx + ty * 5, flat: true });
 
   // rochers sur la pointe et la plage
-  for (const [tx, ty, big] of [[33, 30, 1], [31, 34, 0], [34, 33, 1], [5, 31, 0], [24, 33, 0], [29, 28, 0]] as const) {
+  for (const [tx, ty, big] of [[31, 35, 0], [34, 35, 1], [5, 31, 0], [26, 33, 0], [29, 28, 0]] as const) {
     props.push({ kind: big ? 'bigrock' : 'rock', x: tx * TILE + 8, y: ty * TILE + 13, seed: tx * 3 + ty });
     block(tx, ty);
     if (big) block(tx + 1, ty);
@@ -92,6 +92,12 @@ export function buildWorld(): World {
   block(10, 11);
   props.push({ kind: 'stand', x: 6.7 * TILE, y: 12.9 * TILE, seed: 1 });
   block(6, 12);
+
+  // la buvette d'Élio et le phare de Camille
+  props.push({ kind: 'kiosk', x: 22.5 * TILE, y: 30.6 * TILE, seed: 1 });
+  for (let tx = 21; tx <= 23; tx++) { block(tx, 29); block(tx, 30); }
+  props.push({ kind: 'lighthouse', x: 33.5 * TILE, y: 31.2 * TILE, seed: 1 });
+  for (const [tx, ty] of [[32, 30], [33, 30], [34, 30], [33, 29], [32, 29], [34, 29]]) block(tx, ty);
 
   // le ponton et la barque
   props.push({ kind: 'pier', x: (PIER.x + PIER.w / 2) * TILE, y: PIER.y * TILE, seed: 1, flat: true });

@@ -7,8 +7,10 @@ import * as G from './garden';
 import { dateText, DAY_LATE, DAY_MAX, DAY_START, hourOf, lighting, newClock, present, tick, timeText, type Clock } from './time';
 import {
   aquariumHall, bench, boat, bush, butterfly, cottage, cropArt, fence, flowerPatch, itemIcon, koiTop, lantern, lilypad, mailbox, oak, pier, pine,
-  reeds, rock, seedIcon, seedStand, shippingBin, type KoiPattern,
+  kiosk, lighthouse, reeds, rock, seedIcon, seedStand, shippingBin, type KoiPattern,
 } from './props';
+import { defaultProfile, fill, playerLook, type Profile } from './profile';
+import { openCreator, openSocial } from './panels';
 import { textTexture } from '../sprites';
 import type { Raster } from './raster';
 import { buildWorld, type Prop, type World } from './world';
@@ -17,7 +19,7 @@ import { LOOKS, SPOTS, type CastId } from './cast';
 import { MOODS, portrait } from './portraits';
 import { findPath, nearestWalkable, smoothPath, walkable, type Pt } from './pathfind';
 import {
-  choose, finishSmallTalk, greet, hearts, newRelation, nextConversation, type Npc, type Relation,
+  CHARACTERS, choose, confess, CONFESS, finishSmallTalk, greet, hearts, newRelation, nextConversation, type Npc, type Relation,
 } from './dialogue';
 import { DialogueUI } from './DialogueUI';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -38,7 +40,7 @@ export function addRaster(scene: Phaser.Scene, key: string, frames: Raster | Ras
 }
 
 const SAVE_KEY = 'aquachill.cove';
-const NPCS: Npc[] = ['marcel', 'lila', 'gobie', 'nina'];
+const NPCS = Object.keys(CHARACTERS) as Npc[];
 
 interface Walker {
   id: CastId;
@@ -71,6 +73,7 @@ interface Save {
   y: number;
   clock: Clock;
   farm: G.Farm;
+  profile?: Profile;
 }
 
 const iconCache = new Map<string, string>();
@@ -87,7 +90,7 @@ const seedUrl = (c: G.Crop) => iconUrl(`seed-${c}`, () => seedIcon(c));
 
 function loadSave(): Save {
   const fresh: Save = {
-    rel: { marcel: newRelation(), lila: newRelation(), gobie: newRelation(), nina: newRelation() },
+    rel: Object.fromEntries(NPCS.map((n) => [n, newRelation()])) as Record<Npc, Relation>,
     x: 9.5 * TILE, y: 12.5 * TILE, clock: newClock(), farm: G.newFarm(),
   };
   try {
@@ -126,6 +129,38 @@ export class CoveScene extends Phaser.Scene {
   private veil!: HTMLElement;
   private sleeping = false;
   private hudT = 0;
+  private uiRoot!: HTMLElement;
+  private beam?: Phaser.GameObjects.Image;
+
+  private get profile(): Profile {
+    return this.save.profile ?? defaultProfile();
+  }
+
+  /** Création (ou retouche) du personnage. */
+  private editProfile(first: boolean): void {
+    this.mode = 'talk';
+    this.updateHud(true);
+    openCreator(this.uiRoot, this.profile, first, (p) => {
+      this.save.profile = p;
+      this.textures.remove('actor-player');
+      addRaster(this, 'actor-player', actorSheet(playerLook(p)));
+      this.player.sprite.setTexture('actor-player', frameIndex(this.player.dir, 0));
+      this.mode = 'walk';
+      this.persist();
+      this.updateHud(true);
+      if (first) this.showHint(`Bienvenue dans la crique, ${p.name} ! Touche un endroit pour t’y promener`, 4500);
+    });
+  }
+
+  private openSocial(): void {
+    if (this.mode !== 'walk' || this.ui.open) return;
+    this.mode = 'talk';
+    this.updateHud(true);
+    openSocial(this.uiRoot, this.save.rel, this.profile, () => {
+      this.mode = 'walk';
+      this.updateHud(true);
+    }, () => this.editProfile(false));
+  }
 
   constructor(private audio?: AudioEngine, private groundArt?: GroundArt) {
     super('Cove');
@@ -161,7 +196,8 @@ export class CoveScene extends Phaser.Scene {
     });
 
     this.makeEmotes();
-    for (const id of ['player', ...NPCS] as CastId[]) addRaster(this, `actor-${id}`, actorSheet(LOOKS[id]));
+    addRaster(this, 'actor-player', actorSheet(playerLook(this.profile)));
+    for (const id of NPCS) addRaster(this, `actor-${id}`, actorSheet(LOOKS[id]));
     this.player = this.makeWalker('player', this.save.x, this.save.y, 'down');
     this.player.speed = 52;
     for (const id of NPCS) {
@@ -193,7 +229,8 @@ export class CoveScene extends Phaser.Scene {
     this.veil = document.createElement('div');
     this.veil.className = 'night-veil';
     root.append(this.vignette, this.hint, this.makeHud(), this.veil);
-    this.ui = new DialogueUI(root);
+    this.ui = new DialogueUI(root, (t) => fill(t, this.profile));
+    this.uiRoot = root;
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, WORLD_W, WORLD_H);
@@ -212,7 +249,11 @@ export class CoveScene extends Phaser.Scene {
     });
     this.time.addEvent({ delay: 5000, loop: true, callback: () => this.persist() });
     window.addEventListener('pagehide', () => this.persist());
-    this.showHint('Touche un endroit pour t’y promener', 3500);
+    if (!this.save.profile) {
+      this.time.delayedCall(300, () => this.editProfile(true));
+    } else {
+      this.showHint('Touche un endroit pour t’y promener', 3500);
+    }
   }
 
   // ------------------------------------------------------------ personnages
@@ -359,10 +400,12 @@ export class CoveScene extends Phaser.Scene {
     const t = this.tileOf(w);
     const p = this.tileOf(this.player);
     // la case voisine libre la plus proche du soigneur
-    const options = [[0, 1], [-1, 0], [1, 0], [0, -1], [-1, 1], [1, 1]]
+    // de préférence à côté (pas au-dessus ni en dessous : les silhouettes se chevaucheraient)
+    const cost = (q: Pt) => Math.hypot(q.x - p.x, q.y - p.y) + (q.y !== t.y ? 2.5 : 0);
+    const options = [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1]]
       .map(([dx, dy]) => ({ x: t.x + dx, y: t.y + dy }))
       .filter((q) => walkable(this.world.walk, q.x, q.y))
-      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+      .sort((a, b) => cost(a) - cost(b));
     const goal = options[0] ?? t;
     w.busy = true;
     w.path = [];
@@ -408,12 +451,22 @@ export class CoveScene extends Phaser.Scene {
     const rel = this.save.rel[id];
     const today = new Date().toDateString();
     const gain = greet(rel, today);
-    const conv = nextConversation(id, rel, Date.now());
+    const anyoneDating = NPCS.some((n) => n !== id && this.save.rel[n].dating);
+    const conv = nextConversation(id, rel, Date.now(), this.profile, anyoneDating);
     const script = conv.kind === 'topic' ? { lines: conv.topic.lines, topic: conv.topic } : { lines: conv.lines };
     this.time.delayedCall(450, () => {
       this.ui.show(id, rel, script, {
         onChoice: (choice) => {
           if (conv.kind !== 'topic') return;
+          if (choice.flag === CONFESS) {
+            const res = confess(id, rel, this.profile);
+            rel.lastTopicAt = Date.now();
+            this.emote(w, res.accepted ? 'heart' : null);
+            this.audio?.play(res.accepted ? 'levelUp' : 'chime');
+            this.persist();
+            return res.lines;
+          }
+          if (conv.topic.id === 'romance') rel.asked = true;
           const before = hearts(rel);
           choose(rel, conv.topic, choice, Date.now());
           this.emote(w, choice.delta > 0 ? 'heart' : choice.delta < 0 ? 'cloud' : null);
@@ -591,6 +644,19 @@ export class CoveScene extends Phaser.Scene {
         },
       });
     }
+    // Yanis joue : des notes s'envolent de sa guitare
+    const g = this.make.graphics({}, false);
+    g.fillStyle(0x2a1e2c).fillRect(3, 0, 1, 6).fillRect(3, 0, 3, 1).fillRect(5, 0, 1, 2).fillRect(1, 5, 3, 2);
+    g.generateTexture('note', 7, 8);
+    g.destroy();
+    this.time.addEvent({
+      delay: 1600, loop: true, callback: () => {
+        const y = this.npcs.get('yanis');
+        if (!y || !y.sprite.visible || y.busy || y.path.length) return;
+        const n = this.add.image(y.sprite.x + 5, y.sprite.y - 14, 'note').setDepth(9990).setTint([0xffffff, 0xffe08a, 0xffb0d0][Math.floor(Math.random() * 3)]);
+        this.tweens.add({ targets: n, x: n.x + 6 + Math.random() * 8, y: n.y - 18, alpha: 0, duration: 1800, ease: 'Sine.easeOut', onComplete: () => n.destroy() });
+      },
+    });
     // de temps en temps, le flash de Nina
     this.time.addEvent({
       delay: 7000, loop: true, callback: () => {
@@ -679,6 +745,23 @@ export class CoveScene extends Phaser.Scene {
       this.glows.push({ img, base });
     };
     for (const p of this.world.props) {
+      if (p.kind === 'lighthouse') {
+        glow(p.x, p.y - 64, 1.3);
+        const bt = this.textures.createCanvas('beam', 160, 40)!;
+        const bc = bt.getContext();
+        const bg = bc.createLinearGradient(0, 0, 160, 0);
+        bg.addColorStop(0, 'rgba(255,240,180,0.7)');
+        bg.addColorStop(1, 'rgba(255,240,180,0)');
+        bc.fillStyle = bg;
+        bc.beginPath();
+        bc.moveTo(0, 18);
+        bc.lineTo(160, 0);
+        bc.lineTo(160, 40);
+        bc.lineTo(0, 22);
+        bc.fill();
+        bt.refresh();
+        this.beam = this.add.image(p.x, p.y - 64, 'beam').setOrigin(0, 0.5).setDepth(9810).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      }
       if (p.kind === 'lantern') {
         glow(p.x, p.y - 20, 0.9);
         glow(p.x, p.y - 2, 1.4, 0.35);
@@ -702,6 +785,8 @@ export class CoveScene extends Phaser.Scene {
   private updateLighting(time: number): void {
     const { multiply, dark } = lighting(hourOf(this.save.clock));
     this.lightRect.setFillStyle(multiply);
+    // le faisceau du phare balaie la mer la nuit (il tourne toutes les dix secondes)
+    this.beam?.setAlpha(dark * 0.55).setRotation(((time / 10000) % 1) * Math.PI * 2).setScale(1, 0.6 + Math.abs(Math.sin(time / 3183)) * 0.4);
     for (const g of this.glows) g.img.setAlpha(dark * g.base * (0.9 + Math.sin(time / 300 + g.img.x) * 0.06));
     const t = time / 1000;
     for (const f of this.fireflies) {
@@ -751,7 +836,11 @@ export class CoveScene extends Phaser.Scene {
     bi.src = iconUrl('bag', () => seedIcon('radis'));
     bag.append(bi);
     bag.addEventListener('click', () => this.openBag());
-    root.append(card, bag);
+    const social = document.createElement('button');
+    social.className = 'bag-btn heart-btn';
+    social.textContent = '♥';
+    social.addEventListener('click', () => this.openSocial());
+    root.append(card, bag, social);
     this.hud = { root, date, time: tt, sun, coins };
     this.updateHud(true);
     return root;
@@ -1002,7 +1091,7 @@ export class CoveScene extends Phaser.Scene {
         ...recap.sold.map((s) => `${G.CROPS[s.crop].name} ×${s.qty} … ${s.coins} p.`),
         recap.total ? `Ventes de la nuit : ${recap.total} pièces.` : 'Rien n’a été vendu cette nuit.',
         recap.grew ? `${recap.grew} plante${recap.grew > 1 ? 's ont' : ' a'} poussé${recap.ready ? `, ${recap.ready} prête${recap.ready > 1 ? 's' : ''} à récolter` : ''}.` : 'Pense à arroser ton potager.',
-        passedOut ? 'Tu t’es endormi dehors… Marcel t’a ramené. (-10 pièces pour le café.)' : '',
+        passedOut ? 'Tu t’es endormi[|e|·e] dehors… Marcel t’a ramené[|e|·e]. (-10 pièces pour le café.)' : '',
       ].filter(Boolean);
       this.ui.menu({
         title: `Fin du jour ${day}`,
@@ -1031,15 +1120,15 @@ export class CoveScene extends Phaser.Scene {
       });
       return;
     }
-    (Object.keys(LOOKS) as CastId[]).forEach((id, row) => {
-      const frames = actorSheet(LOOKS[id]);
+    (['player', ...NPCS] as CastId[]).forEach((id, row) => {
+      const frames = actorSheet(id === 'player' ? playerLook(this.profile) : LOOKS[id]);
       addRaster(this, `actor-${id}`, frames);
       frames.forEach((_, i) => this.add.image(4 + (i % 12) * 19.5, 6 + row * 30, `actor-${id}`, i).setOrigin(0));
     });
   }
 
   private placeProp(p: Prop): void {
-    const unique = ['cottage', 'pier', 'boat', 'mailbox', 'bench', 'fence', 'lantern', 'bin', 'stand', 'aquarium'].includes(p.kind);
+    const unique = ['cottage', 'pier', 'boat', 'mailbox', 'bench', 'fence', 'lantern', 'bin', 'stand', 'aquarium', 'kiosk', 'lighthouse'].includes(p.kind);
     const s = p.seed % 12;
     const key = `cove-${p.kind}-${unique ? 0 : s}`;
     switch (p.kind) {
@@ -1064,6 +1153,8 @@ export class CoveScene extends Phaser.Scene {
       case 'bin': addRaster(this, key, shippingBin()); break;
       case 'stand': addRaster(this, key, seedStand()); break;
       case 'aquarium': addRaster(this, key, aquariumHall()); break;
+      case 'kiosk': addRaster(this, key, kiosk()); break;
+      case 'lighthouse': addRaster(this, key, lighthouse()); break;
     }
     if (p.kind === 'aquarium') {
       const sign = textTexture(this.textures, 'AQUARIUM', '#1f6a78', null, 'small');

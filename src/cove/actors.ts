@@ -17,6 +17,8 @@ export interface ActorSpec {
   dress?: boolean;
   /** Accessoire en bandoulière (sacoche, appareil photo). */
   strap?: string;
+  /** Petit pin's sur la poitrine (couleurs de haut en bas). */
+  pin?: string[];
 }
 
 export type Dir = 'down' | 'right' | 'up';
@@ -81,6 +83,11 @@ export function actorFrame(spec: ActorSpec, dir: Dir, step: number): Raster {
     for (let k = 0; k < 6; k++) body.set(dir === 'right' ? 6 + Math.floor(k / 2) : 5 + k, tTop + 1 + k, hex(spec.strap));
     body.set(dir === 'right' ? 10 : 10, tTop + 6, hex('#2a2a34'));
     body.set(dir === 'right' ? 10 : 11, tTop + 6, hex('#2a2a34'));
+  }
+
+  if (spec.pin && dir !== 'up') {
+    const px = dir === 'right' ? 10 : 9;
+    spec.pin.forEach((c, k) => body.set(px, tTop + 2 + k, hex(c)));
   }
 
   // --- bras (balancement)

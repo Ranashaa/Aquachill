@@ -1,8 +1,10 @@
 // Conversations avec les habitués : rencontres, sujets à choix (qui changent la
 // relation) et petites phrases du quotidien qui se souviennent de tes réponses.
 import type { Mood } from './portraits';
+import { attractedTo, type Attraction, type Gender, type Profile } from './profile';
+import { RESIDENTS } from './residents';
 
-export type Npc = 'marcel' | 'lila' | 'gobie' | 'nina';
+export type Npc = 'marcel' | 'lila' | 'gobie' | 'nina' | 'elio' | 'maelle' | 'yanis' | 'camille';
 
 export interface Line {
   text: string;
@@ -32,26 +34,49 @@ export interface SmallTalk {
   hearts?: number;
 }
 
+export interface Romance {
+  ask: Line[];
+  accept: Line[];
+  decline: Line[];
+  /** Réponse si on choisit de rester ami·e·s. */
+  friend: Line[];
+  couple: SmallTalk[];
+}
+
 export interface Character {
   name: string;
   role: string;
+  gender: Gender;
+  attraction: Attraction;
+  /** Adulte libre, qui peut vivre une romance si l'attirance est réciproque. */
+  romanceable: boolean;
+  /** Ce qu'affiche le carnet une fois l'orientation connue. */
+  orientation: string;
+  /** Connue dès la rencontre (Marcel est marié, Lila est une enfant). */
+  orientationKnown?: boolean;
+  /** Couleurs du petit pin's porté sur la veste. */
+  pin?: string[];
   intro: Topic;
+  /** Le sujet d'id « confide » révèle l'orientation. */
   topics: Topic[];
   small: SmallTalk[];
+  romance?: Romance;
 }
 
 const L = (text: string, mood: Mood = 'neutral'): Line => ({ text, mood });
 
-export const CHARACTERS: Record<Npc, Character> = {
+const BASE: Record<'marcel' | 'lila' | 'gobie' | 'nina', Character> = {
   marcel: {
     name: 'Marcel',
     role: 'Pêcheur du ponton',
+    gender: 'm', attraction: 'f', romanceable: false, orientationKnown: true,
+    orientation: 'Marié à Josiane depuis 42 ans',
     intro: {
       id: 'intro',
       lines: [L('Hmpf. Encore un touriste.', 'grumpy'), L('Tu fais peur aux poissons, avec tes pas de géant.', 'grumpy')],
       choices: [
         { text: 'Pardon ! Je suis le nouveau soigneur de la crique.', delta: 20, reply: [L('Le soigneur ? …Bon. Alors tu n’es pas un touriste. C’est déjà ça.', 'surprised'), L('Marcel. Quarante ans que je pêche au bout de ce ponton. Enfin, que j’essaie.')] },
-        { text: 'Les poissons n’ont pas d’oreilles, si ?', delta: 10, flag: 'marcel_malin', reply: [L('Ils entendent avec leur ligne latérale, monsieur je-sais-tout.', 'grumpy'), L('…Hé. Tu m’as fait sortir une phrase savante. Pas mal.', 'happy')] },
+        { text: 'Les poissons n’ont pas d’oreilles, si ?', delta: 10, flag: 'marcel_malin', reply: [L('Ils entendent avec leur ligne latérale, [monsieur je-sais-tout|madame je-sais-tout|petit génie].', 'grumpy'), L('…Hé. Tu m’as fait sortir une phrase savante. Pas mal.', 'happy')] },
         { text: 'Alors, ça mord ?', delta: -5, reply: [L('Si ça mordait, je ne serais pas en train de te parler.', 'grumpy')] },
       ],
     },
@@ -97,6 +122,8 @@ export const CHARACTERS: Record<Npc, Character> = {
   lila: {
     name: 'Lila',
     role: 'Exploratrice de la plage, 7 ans ¾',
+    gender: 'f', attraction: 'none', romanceable: false, orientationKnown: true,
+    orientation: 'Trop jeune pour ces histoires !',
     intro: {
       id: 'intro',
       lines: [L('T’es qui, toi ? T’es un pirate ?', 'surprised')],
@@ -149,6 +176,8 @@ export const CHARACTERS: Record<Npc, Character> = {
   gobie: {
     name: 'Pr Gobie',
     role: 'Biologiste (un peu distraite)',
+    gender: 'f', attraction: 'none', romanceable: false,
+    orientation: 'Aromantique : l’amitié avant tout',
     intro: {
       id: 'intro',
       lines: [L('Ah ! Vous m’avez fait peur !', 'surprised'), L('J’étais en train de compter les têtards. J’en étais à… zut.', 'sad')],
@@ -199,14 +228,16 @@ export const CHARACTERS: Record<Npc, Character> = {
   },
   nina: {
     name: 'Nina',
-    role: 'Photographe des rochers',
+    role: 'Photographe de la prairie',
+    gender: 'f', attraction: 'm', romanceable: true,
+    orientation: 'Attirée par les hommes',
     intro: {
       id: 'intro',
       lines: [L('Chut… ne bouge pas… la lumière est parfaite…'), L('…et la mouette est partie. Bon.', 'sad')],
       choices: [
         { text: 'Pardon ! Je peux voir tes photos ?', delta: 25, reply: [L('Bien sûr ! Regarde : mouette floue, mouette floue, mon pouce, mouette floue.', 'happy'), L('Nina. Photographe. Surtout de mouettes floues.')] },
         { text: 'Elle va revenir, la mouette.', delta: 15, reply: [L('Tu as raison. Elles reviennent toujours. Surtout quand on a un sandwich.', 'happy')] },
-        { text: 'Tu devrais photographier autre chose.', delta: -10, reply: [L('Merci du conseil, monsieur le critique d’art.', 'grumpy')] },
+        { text: 'Tu devrais photographier autre chose.', delta: -10, reply: [L('Merci du conseil, [monsieur le critique d’art|madame la critique d’art|grand·e critique d’art].', 'grumpy')] },
       ],
     },
     topics: [
@@ -250,6 +281,46 @@ export const CHARACTERS: Record<Npc, Character> = {
   },
 };
 
+BASE.gobie.topics.push({
+  id: 'confide',
+  hearts: 3,
+  lines: [L('On m’a souvent demandé quand j’allais me marier.', 'neutral'), L('La vérité, c’est que l’amour romantique, je ne le ressens pas. Je suis aromantique.', 'blush')],
+  choices: [
+    { text: 'Merci de me le dire. Ça ne change rien entre nous.', delta: 35, reply: [L('Je savais que vous comprendriez. L’amitié, en revanche, je la ressens très fort.', 'happy')] },
+    { text: 'Vous avez les têtards, de toute façon.', delta: 25, reply: [L('Exactement ! Et mes carnets. Et vous.', 'happy')] },
+    { text: 'Vous n’avez juste pas trouvé la bonne personne.', delta: -20, reply: [L('Non. Ce n’est pas une histoire de personne. Je suis très bien comme je suis.', 'grumpy')] },
+  ],
+});
+BASE.gobie.romance = {
+  ask: [L('Vous vouliez me parler ? Vous avez l’air tout ému.', 'surprised')],
+  accept: [],
+  decline: [L('Oh… C’est très touchant.', 'blush'), L('Mais vous savez, l’amour romantique, ce n’est pas pour moi. Je vous offre mieux : une amitié scientifiquement indestructible.', 'happy')],
+  friend: [L('Une amitié solide est l’une des plus belles découvertes qui soient. J’en ai la preuve devant moi.', 'happy')],
+  couple: [],
+};
+BASE.nina.topics.push({
+  id: 'confide',
+  hearts: 3,
+  lines: [L('Hugo, mon ex, détestait que je le prenne en photo.', 'sad'), L('Moi, je trouvais qu’il était beau quand il ne posait pas. C’est ce que j’aimais chez lui.', 'blush')],
+  choices: [
+    { text: 'Tu captures les gens tels qu’ils sont.', delta: 35, reply: [L('C’est exactement ça. Tu as l’œil, toi aussi.', 'happy')] },
+    { text: 'Il avait tort, tes photos sont belles.', delta: 25, reply: [L('Merci. Je le pense aussi, maintenant.', 'blush')] },
+    { text: 'Tu penses encore à lui ?', delta: 10, reply: [L('Moins qu’avant. La lumière de la crique m’aide à regarder ailleurs.', 'neutral')] },
+  ],
+});
+BASE.nina.romance = {
+  ask: [L('Attends, ne bouge pas… la lumière du soir est parfaite sur toi.', 'blush'), L('…Je crois que j’ai plus de photos de toi que de mouettes, maintenant.', 'blush')],
+  accept: [L('Tu es sérieux ?', 'surprised'), L('Alors je peux enfin te le dire : c’est toi, ma plus belle photo.', 'blush')],
+  decline: [L('Oh. Je suis flattée, vraiment.', 'blush'), L('Mais moi, ce sont les garçons qui me font rater mes photos. Tu restes mon ou ma modèle préféré·e, d’accord ?', 'happy')],
+  friend: [L('Une amitié, c’est une photo qu’on ne finit jamais de développer.', 'happy')],
+  couple: [
+    { text: 'J’ai accroché ta photo au-dessus de mon lit. Le frigo, c’était pour avant.', mood: 'blush' },
+    { text: 'L’heure dorée ce soir ? Pas pour les photos. Juste pour nous.', mood: 'blush' },
+  ],
+};
+
+export const CHARACTERS: Record<Npc, Character> = { ...BASE, ...RESIDENTS };
+
 // ------------------------------------------------------------------ relations
 
 export const HEART = 50;
@@ -264,27 +335,87 @@ export interface Relation {
   lastTopicAt: number;
   lastGreetDay: string;
   smallIndex: number;
+  /** En couple ? */
+  dating?: boolean;
+  /** Déclaration déjà faite (acceptée ou non). */
+  asked?: boolean;
 }
 
 export const newRelation = (): Relation => ({ points: 0, seen: [], flags: [], lastTopicAt: 0, lastGreetDay: '', smallIndex: 0 });
 export const hearts = (r: Relation) => Math.max(0, Math.min(MAX_HEARTS, Math.floor(r.points / HEART)));
+export const ROMANCE_HEARTS = 6;
+
+export function orientationKnown(id: Npc, r: Relation): boolean {
+  return !!CHARACTERS[id].orientationKnown || r.seen.includes('confide') || !!r.asked;
+}
+
+/** Le lien : connaissance, ami·e, ami·e proche, meilleur·e ami·e, en couple. */
+export function relationLabel(r: Relation, met: boolean): string {
+  if (!met) return 'Pas encore rencontré·e';
+  if (r.dating) return 'En couple ♥';
+  const h = hearts(r);
+  if (h >= MAX_HEARTS) return 'Meilleur·e ami·e';
+  if (h >= 6) return 'Ami·e proche';
+  if (h >= 2) return 'Ami·e';
+  return 'Connaissance';
+}
+
+/** Le joueur peut-il se déclarer ? (il ou elle doit être attiré·e, et personne d'autre en couple) */
+export function canConfess(id: Npc, r: Relation, p: Profile, anyoneDating: boolean): boolean {
+  const c = CHARACTERS[id];
+  return !!c.romance && !r.asked && !anyoneDating && hearts(r) >= ROMANCE_HEARTS && attractedTo(p.attraction, c.gender);
+}
+
+/** La déclaration est-elle réciproque ? */
+export const mutual = (id: Npc, p: Profile) => CHARACTERS[id].romanceable && attractedTo(CHARACTERS[id].attraction, p.gender);
 
 export type Conversation =
   | { kind: 'topic'; topic: Topic }
   | { kind: 'small'; lines: Line[] };
 
+export const CONFESS = 'confess';
+
 /** Ce que l'habitué a à dire maintenant. */
-export function nextConversation(id: Npc, r: Relation, now: number): Conversation {
+export function nextConversation(id: Npc, r: Relation, now: number, p?: Profile, anyoneDating = false): Conversation {
   const c = CHARACTERS[id];
   if (!r.seen.includes('intro')) return { kind: 'topic', topic: c.intro };
+  if (p && canConfess(id, r, p, anyoneDating) && now - r.lastTopicAt >= TOPIC_COOLDOWN) {
+    return {
+      kind: 'topic',
+      topic: {
+        id: 'romance',
+        lines: c.romance!.ask,
+        choices: [
+          { text: 'Lui avouer tes sentiments', delta: 0, reply: [], flag: CONFESS },
+          { text: 'Lui dire combien son amitié compte', delta: 20, reply: c.romance!.friend },
+        ],
+      },
+    };
+  }
   const topic = c.topics.find((t) => !r.seen.includes(t.id) && hearts(r) >= (t.hearts ?? 0));
   if (topic && now - r.lastTopicAt >= TOPIC_COOLDOWN) return { kind: 'topic', topic };
-  // petites phrases : d'abord celles qui se souviennent de tes réponses
+  // en couple : des mots doux ; sinon, d'abord les répliques qui se souviennent de tes réponses
+  if (r.dating && c.romance?.couple.length && r.smallIndex % 2 === 0) {
+    const s = c.romance.couple[Math.floor(r.smallIndex / 2) % c.romance.couple.length];
+    return { kind: 'small', lines: [{ text: s.text, mood: s.mood ?? 'blush' }] };
+  }
   const pool = c.small.filter((s) => (!s.flag || r.flags.includes(s.flag)) && hearts(r) >= (s.hearts ?? 0));
   const remembered = pool.filter((s) => s.flag);
   const list = remembered.length && r.smallIndex % 2 === 0 ? remembered : pool;
   const s = list[r.smallIndex % list.length];
   return { kind: 'small', lines: [{ text: s.text, mood: s.mood ?? 'neutral' }] };
+}
+
+/** Se déclarer : couple si c'est réciproque, sinon une réponse douce (et l'amitié reste). */
+export function confess(id: Npc, r: Relation, p: Profile): { accepted: boolean; lines: Line[] } {
+  const c = CHARACTERS[id];
+  r.asked = true;
+  if (mutual(id, p)) {
+    r.dating = true;
+    r.points = Math.min(MAX_HEARTS * HEART, r.points + 50);
+    return { accepted: true, lines: c.romance!.accept };
+  }
+  return { accepted: false, lines: c.romance!.decline };
 }
 
 /** Un bonjour par jour fait plaisir. Renvoie le gain. */

@@ -151,3 +151,66 @@ describe('crique : le potager', () => {
     expect(G.plotIndex(6, 15)).toBeNull();
   });
 });
+
+import { attractedTo, defaultProfile, fill } from '../src/cove/profile';
+
+describe('crique : ton personnage', () => {
+  it('accorde les répliques au genre et au prénom', () => {
+    const p = { ...defaultProfile(), name: 'Sam' };
+    expect(fill('Merci, [petit|petite|gamin·e] {nom} !', { ...p, gender: 'm' })).toBe('Merci, petit Sam !');
+    expect(fill('Merci, [petit|petite|gamin·e] {nom} !', { ...p, gender: 'f' })).toBe('Merci, petite Sam !');
+    expect(fill('Tu t’es endormi[|e|·e].', { ...p, gender: 'n' })).toBe('Tu t’es endormi·e.');
+  });
+
+  it('les attirances', () => {
+    expect(attractedTo('f', 'f')).toBe(true);
+    expect(attractedTo('f', 'm')).toBe(false);
+    expect(attractedTo('all', 'n')).toBe(true);
+    expect(attractedTo('none', 'f')).toBe(false);
+  });
+});
+
+import { canConfess, confess, nextConversation as nextConv, orientationKnown, relationLabel, type Relation } from '../src/cove/dialogue';
+
+describe('crique : relations et romances', () => {
+  const base = { ...defaultProfile(), name: 'Sam' };
+  const rel = (points: number): Relation => ({ points, seen: ['intro'], flags: [], lastTopicAt: 0, lastGreetDay: '', smallIndex: 0 });
+
+  it('chaque habitué adulte a une confidence qui révèle son orientation', () => {
+    for (const [id, c] of Object.entries(CHARACTERS)) {
+      if (c.orientationKnown) continue;
+      expect(c.topics.some((t) => t.id === 'confide'), id).toBe(true);
+    }
+    const r = rel(0);
+    expect(orientationKnown('maelle', r)).toBe(false);
+    r.seen.push('confide');
+    expect(orientationKnown('maelle', r)).toBe(true);
+    expect(orientationKnown('marcel', rel(0))).toBe(true);
+  });
+
+  it('la déclaration n’est proposée qu’à 6 cœurs, si le joueur est attiré, et jamais aux enfants ni aux gens mariés', () => {
+    const p = { ...base, gender: 'f' as const, attraction: 'f' as const };
+    expect(canConfess('maelle', rel(299), p, false)).toBe(false);
+    expect(canConfess('maelle', rel(300), p, false)).toBe(true);
+    expect(canConfess('yanis', rel(300), p, false)).toBe(false);
+    expect(canConfess('lila', rel(500), { ...p, attraction: 'all' }, false)).toBe(false);
+    expect(canConfess('marcel', rel(500), { ...p, attraction: 'all' }, false)).toBe(false);
+    expect(canConfess('maelle', rel(300), p, true)).toBe(false);
+    const conv = nextConv('maelle', rel(300), 1e12, p);
+    expect(conv.kind === 'topic' && conv.topic.id).toBe('romance');
+  });
+
+  it('réciproque : en couple ; sinon, un refus doux et l’amitié reste', () => {
+    const r1 = rel(300);
+    expect(confess('maelle', r1, { ...base, gender: 'f', attraction: 'f' }).accepted).toBe(true);
+    expect(r1.dating).toBe(true);
+    expect(relationLabel(r1, true)).toBe('En couple ♥');
+    const r2 = rel(300);
+    expect(confess('maelle', r2, { ...base, gender: 'm', attraction: 'f' }).accepted).toBe(false);
+    expect(r2.dating).toBeFalsy();
+    expect(r2.points).toBe(300);
+    expect(relationLabel(r2, true)).toBe('Ami·e proche');
+    expect(confess('gobie', rel(300), { ...base, attraction: 'all' }).accepted).toBe(false);
+    expect(confess('camille', rel(300), { ...base, gender: 'n', attraction: 'all' }).accepted).toBe(true);
+  });
+});

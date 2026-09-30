@@ -4,7 +4,7 @@ import { CHARACTERS, hearts, MAX_HEARTS, type Choice, type Line, type Npc, type 
 import { portrait, type Mood } from './portraits';
 
 const cache = new Map<string, string>();
-function portraitUrl(id: Npc, mood: Mood, variant: 'base' | 'talk' | 'blink'): string {
+export function portraitUrl(id: Npc, mood: Mood, variant: 'base' | 'talk' | 'blink'): string {
   const key = `${id}:${mood}:${variant}`;
   let url = cache.get(key);
   if (!url) {
@@ -22,7 +22,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
 }
 
 export interface DialogueHooks {
-  onChoice(choice: Choice): void;
+  /** Peut remplacer la réponse prévue (par exemple après une déclaration). */
+  onChoice(choice: Choice): Line[] | void;
   onClose(): void;
   /** Proposé à la fin de la conversation s'il y a quelque chose à offrir. */
   gift?: {
@@ -43,7 +44,7 @@ export class DialogueUI {
   private box: HTMLElement | null = null;
   private timers: number[] = [];
 
-  constructor(private root: HTMLElement) {}
+  constructor(private root: HTMLElement, private format: (text: string) => string = (t) => t) {}
 
   get open(): boolean {
     return !!this.box;
@@ -107,7 +108,7 @@ export class DialogueUI {
     let onLineDone: (() => void) | null = null;
     const say = (line: Line, done: () => void) => {
       mood = line.mood ?? 'neutral';
-      full = line.text;
+      full = this.format(line.text);
       talking = true;
       next.classList.remove('on');
       let i = 0;
@@ -199,15 +200,15 @@ export class DialogueUI {
       next.classList.remove('on');
       advance = null;
       topic.choices.forEach((ch, k) => {
-        const b = el('button', 'dlg-choice', ch.text);
+        const b = el('button', 'dlg-choice', this.format(ch.text));
         b.style.animationDelay = `${k * 70}ms`;
         b.addEventListener('click', () => {
           choices.replaceChildren();
           const before = hearts(rel);
-          hooks.onChoice(ch);
+          const override = hooks.onChoice(ch);
           renderHearts();
-          this.pop(frame, ch.delta, hearts(rel) > before);
-          play(ch.reply, finish);
+          this.pop(frame, override ? (rel.dating ? 1 : 0) : ch.delta, hearts(rel) > before);
+          play(override ?? ch.reply, finish);
         });
         choices.append(b);
       });
@@ -221,8 +222,8 @@ export class DialogueUI {
     this.close();
     const wrap = el('div', 'dlg menu');
     const box = el('div', 'dlg-box');
-    box.append(el('div', 'dlg-title', o.title));
-    if (o.text) box.append(el('div', 'dlg-text small', o.text));
+    box.append(el('div', 'dlg-title', this.format(o.title)));
+    if (o.text) box.append(el('div', 'dlg-text small', this.format(o.text)));
     const choices = el('div', 'dlg-choices');
     const done = () => {
       this.close();

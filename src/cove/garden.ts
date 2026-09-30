@@ -160,10 +160,42 @@ export function night(f: Farm): NightRecap {
 export type Taste = 'love' | 'like' | 'neutral';
 
 const TASTES: Record<Npc, { love: Crop[]; like: Crop[]; replies: Record<Taste, Line[]> }> = {
+  elio: {
+    love: ['fraise'], like: ['lavande'],
+    replies: {
+      love: [{ text: 'Des fraises ! Demain, tarte aux fraises à la buvette. Et la première part est pour toi.', mood: 'happy' }],
+      like: [{ text: 'De la lavande… Un pain à la lavande, ça existe ? Ça va exister.', mood: 'happy' }],
+      neutral: [{ text: 'Merci ! Je trouverai bien une recette.', mood: 'neutral' }],
+    },
+  },
+  maelle: {
+    love: ['radis'], like: ['tournesol'],
+    replies: {
+      love: [{ text: 'Des radis ! Le meilleur casse-croûte en mer. Tu as tout compris.', mood: 'happy' }],
+      like: [{ text: 'Un tournesol. Je vais l’accrocher au mât. La mouette va être jalouse.', mood: 'happy' }],
+      neutral: [{ text: 'Merci. C’est gentil d’avoir pensé à moi.', mood: 'blush' }],
+    },
+  },
+  yanis: {
+    love: ['tournesol'], like: ['fraise'],
+    replies: {
+      love: [{ text: 'Un tournesol ! Il va me regarder jouer. Enfin un public qui ne s’envole pas.', mood: 'happy' }],
+      like: [{ text: 'Une fraise. Il y a une chanson là-dedans, je la sens.', mood: 'happy' }],
+      neutral: [{ text: 'Merci ! Je vais la poser sur ma guitare, pour l’inspiration.', mood: 'neutral' }],
+    },
+  },
+  camille: {
+    love: ['lavande'], like: ['radis'],
+    replies: {
+      love: [{ text: 'De la lavande… Ça sent comme les nuits d’été en haut du phare. Merci.', mood: 'blush' }],
+      like: [{ text: 'Un radis ! Bouée va essayer de le voler. Je le défendrai.', mood: 'happy' }],
+      neutral: [{ text: 'Merci. Je le garde près de la lampe.', mood: 'neutral' }],
+    },
+  },
   marcel: {
     love: ['radis'], like: ['lavande'],
     replies: {
-      love: [{ text: 'Des radis ! Comme ceux du jardin de Josiane…', mood: 'surprised' }, { text: 'Merci, petit. Vraiment.', mood: 'blush' }],
+      love: [{ text: 'Des radis ! Comme ceux du jardin de Josiane…', mood: 'surprised' }, { text: 'Merci, [petit|petite|gamin·e]. Vraiment.', mood: 'blush' }],
       like: [{ text: 'De la lavande. Josiane va croire que j’ai une admiratrice.', mood: 'happy' }],
       neutral: [{ text: 'Hmpf. C’est gentil. Je ne sais pas quoi en faire, mais c’est gentil.', mood: 'neutral' }],
     },
