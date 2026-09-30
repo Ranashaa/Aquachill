@@ -1503,9 +1503,9 @@ export class UI {
             },
           }, 'Renommer'));
         })(),
-        h('div', { class: 'section-title' }, 'Maquette : la crique'),
-        h('p', { class: 'muted' }, 'Un avant-goût de la prochaine version : une crique vue de dessus, des habitués et des dialogues à choix.'),
-        h('a', { class: 'btn small', href: '?crique' }, 'Essayer la crique'),
+        h('div', { class: 'section-title' }, 'La crique'),
+        h('p', { class: 'muted' }, 'Sors de l’aquarium pour te promener dans la crique : potager, habitués, dialogues à choix.'),
+        h('a', { class: 'btn small', href: '?crique' }, 'Aller dans la crique'),
         h('div', { class: 'section-title' }, 'Sauvegarde'),
         h('p', { class: 'muted' }, 'La partie est sauvegardée automatiquement dans ce navigateur.'),
         reset,

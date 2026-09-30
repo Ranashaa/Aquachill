@@ -93,7 +93,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       const nx = (x - cx) / half;
       let t = 0.62 - nx * 0.3 - (y - 46) / 60;
       if (Math.abs(nx) > 0.82) t -= 0.25;
-      body.set(x, y, ramp(cloth, t, x, y, 0.3));
+      body.set(x, y, ramp(cloth, t, x, y, 0.15));
     }
   }
   // détails de tenue
@@ -154,7 +154,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       let t = 0.66 - nx * 0.28 - ny * 0.12;
       if (nx > 0.55) t -= 0.18;
       if (ny > 0.75) t -= 0.2;
-      head.set(x, y, ramp(skin, t, x, y, 0.35));
+      head.set(x, y, ramp(skin, t, x, y, 0.1));
     }
   }
   // oreilles
@@ -174,39 +174,56 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     const ex = Math.round(cx + side * eyeDX);
     if (blink || m === 'happy') {
       // yeux fermés : un arc (souriant quand heureux)
-      for (let k = -2; k <= 2; k++) r.set(ex + k, eyeY + (m === 'happy' && !blink ? (Math.abs(k) === 2 ? 1 : 0) : 1), INK);
       if (m === 'happy' && !blink) {
-        r.set(ex - 1, eyeY - 1 + 1, INK);
-        r.set(ex, eyeY - 1, INK);
-        r.set(ex + 1, eyeY, INK);
-        r.set(ex - 2, eyeY + 1, INK);
-        r.set(ex + 2, eyeY + 1, INK);
+        // ^ ^ : un arc joyeux
+        for (let k = -3; k <= 3; k++) r.set(ex + k, eyeY - 1 + Math.round(Math.abs(k) * 0.6), INK);
+        for (let k = -2; k <= 2; k++) r.set(ex + k, eyeY + Math.round(Math.abs(k) * 0.6), mixRGB(skin[2], INK, 0.25));
+      } else {
+        for (let k = -3; k <= 3; k++) r.set(ex + k, eyeY + 1 + (Math.abs(k) === 3 ? -1 : 0), INK);
+        if (side > 0) r.set(ex + 4, eyeY - 1, INK);
+        else r.set(ex - 4, eyeY - 1, INK);
       }
     } else {
+      // œil en amande : blanc, grand iris dégradé, pupille, deux reflets
       const big = m === 'surprised' ? 1 : 0;
-      const h = (child ? 5 : 4) + big;
-      const top = eyeY - 1 - big;
-      for (let y = top; y < top + h; y++) {
-        for (let x = ex - 2 - big; x <= ex + 2 + big; x++) r.set(x, y, 0xfbf8f4);
-      }
-      // iris
-      for (let y = top; y < top + h; y++) {
-        for (let x = ex - 1; x <= ex + 1; x++) r.set(x, y, eyeC[y === top ? 0 : y === top + h - 1 ? 3 : 2]);
-      }
-      r.set(ex, top + 1, INK);
-      r.set(ex, top + 2, INK);
-      r.set(ex + side, top + h - 1, eyeC[4]);
-      r.set(ex - 1, top + 1, 0xffffff);
-      r.set(ex - 1, top, 0xffffff);
-      // paupière supérieure et cils
+      const h = (child ? 6 : 5) + big;
+      const top = eyeY - 2 - big;
+      const half = 3 + big;
       const lid = m === 'grumpy' || m === 'sad' ? 1 : 0;
-      for (let x = ex - 2 - big; x <= ex + 2 + big; x++) r.set(x, top - 1, INK);
-      r.set(ex - 3 - big, top, INK);
-      r.set(ex + 3 + big, top, INK);
-      for (let x = ex - 2 - big; x <= ex + 2 + big; x++) r.set(x, top + h, mixRGB(skin[1], skin[2], 0.5));
-      if (lid) for (let x = ex - 2; x <= ex + 2; x++) r.set(x, top, skin[1]);
-      r.set(ex + side * (3 + big), top - 2, INK);
-      if (sp.style === 'gobie' || sp.style === 'nina' || child) r.set(ex + side * (3 + big), top - 1, INK);
+      for (let y = top; y < top + h; y++) {
+        const edgeRow = y === top || y === top + h - 1;
+        for (let x = ex - half; x <= ex + half; x++) {
+          if (edgeRow && Math.abs(x - ex) === half) continue;
+          r.set(x, y, y === top ? 0xe8e0e4 : 0xfbf6f0);
+        }
+      }
+      const iw = child ? 2 : 2;
+      for (let y = top; y < top + h; y++) {
+        for (let x = ex - iw; x <= ex + iw - 1 + (child ? 1 : 0); x++) {
+          const k = (y - top) / (h - 1);
+          const edgeRow = y === top || y === top + h - 1;
+          if (edgeRow && (x === ex - iw || x === ex + iw - 1 + (child ? 1 : 0))) continue;
+          r.set(x, y, eyeC[k < 0.25 ? 0 : k < 0.6 ? 1 : k < 0.85 ? 2 : 3]);
+        }
+      }
+      r.set(ex - 1, top + 2, INK);
+      r.set(ex, top + 2, INK);
+      r.set(ex - 1, top + 3, INK);
+      r.set(ex, top + 3, eyeC[0]);
+      r.set(ex - 2, top + 1, 0xffffff);
+      r.set(ex - 1, top + 1, 0xffffff);
+      r.set(ex - 2, top + 2, 0xffffff);
+      r.set(ex + 1, top + h - 2, mixRGB(eyeC[4], 0xffffff, 0.5));
+      // cils et paupière
+      for (let x = ex - half; x <= ex + half; x++) r.set(x, top - 1, INK);
+      r.set(ex - half - 1, top, INK);
+      r.set(ex + half + 1, top, INK);
+      if (sp.style !== 'marcel') {
+        r.set(ex + side * (half + 2), top - 1, INK);
+        r.set(ex + side * (half + 2), top - 2, INK);
+      }
+      for (let x = ex - half + 1; x <= ex + half - 1; x++) r.set(x, top + h, mixRGB(skin[1], skin[2], 0.5));
+      if (lid) for (let x = ex - half; x <= ex + half; x++) r.set(x, top, INK), r.set(x, top - 1, skin[1]);
     }
     // sourcils selon l'humeur
     const by = eyeY - (child ? 6 : 5) - (m === 'surprised' ? 2 : 0);
@@ -227,6 +244,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       if (m === 'blush') for (let k = -1; k <= 1; k += 2) r.set(ex + k, eyeY + 5, mixRGB(bc, 0xffffff, 0.3));
     }
   }
+  for (const side of [-1, 1]) r.set(Math.round(cx + side * (eyeDX + 1)), eyeY + 5, side < 0 ? skin[4] : skin[3]);
   if (sp.style === 'lila') {
     // taches de rousseur
     for (const [fx, fy] of [[-8, 5], [-6, 6], [-9, 7], [7, 5], [9, 6], [6, 7]]) r.set(cx + fx, eyeY + fy, skin[1]);
@@ -360,6 +378,15 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       if (front.alpha(x, y - 1) || front.alpha(x, y - 2)) {
         const c = r.get(x, y);
         if (c !== INK && c !== 0xfbf8f4) r.set(x, y, mixRGB(c, skin[0], 0.45));
+      }
+    }
+  }
+  if (sp.style !== 'marcel') {
+    for (let y = 0; y < cy - 3; y++) {
+      for (let x = 0; x < S; x++) {
+        if (!front.alpha(x, y)) continue;
+        const d = Math.hypot((x - cx) / (headRx + 3), (y - cy + 2) / (headRy + 2));
+        if (d > 0.74 && d < 0.8 && (x + y) % 4 !== 0 && x < cx + 8) front.set(x, y, hair[4]);
       }
     }
   }

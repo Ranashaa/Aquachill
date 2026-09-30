@@ -252,24 +252,55 @@ export function cottage(): Raster {
       s.set(fx + 1, 72, col);
     }
   }
-  // toit : tuiles en écailles, faîtage, débord
-  const ROOF = ['#2a3458', '#3a4a78', '#4e64a0', '#6a86c0', '#8aa8d8'].map(hex);
-  for (let y = 4; y < wallTop + 2; y++) {
-    const inset = Math.max(0, 6 - (y - 4)) ;
-    for (let x = 2 + inset; x < W - 2 - inset; x++) {
-      const row = Math.floor((y - 4) / 5);
+  // toit : rangées de tuiles arrondies (écailles), faîtage, lucarne, un peu de mousse
+  const ROOF = ['#26284a', '#353c6e', '#4a5894', '#6478b6', '#8aa2d4', '#b4c8ec'].map(hex);
+  const top = 4;
+  const bottom = wallTop + 2;
+  for (let y = top; y < bottom; y++) {
+    const inset = Math.max(0, 5 - (y - top));
+    for (let x = 1 + inset; x < W - 1 - inset; x++) {
+      const row = Math.floor((y - top) / 6);
       const off = (row % 2) * 4;
-      const fx = ((x + off) % 8) / 8;
-      const fy = ((y - 4) % 5) / 5;
-      let t = 0.35 + (1 - (y - 4) / (wallTop - 2)) * 0.35 + (hash(Math.floor((x + off) / 8), row, 4) - 0.5) * 0.2;
-      if (fy > 0.75) t -= 0.35; // bas de chaque rangée de tuiles
-      if (fx < 0.12) t -= 0.15;
-      if (y < 12) t += 0.15;
-      s.set(x, y, ramp(ROOF, t, x, y, 0.2));
+      const tx = x + off;
+      const fx = (tx % 8) / 8;
+      const fy = ((y - top) % 6) / 6;
+      // chaque tuile est bombée : claire en haut à gauche, sombre en bas et sur les bords
+      const bulge = 1 - Math.abs(fx - 0.5) * 2;
+      let t = 0.5 + (1 - (y - top) / (bottom - top)) * 0.25 - (x / W) * 0.18 + (hash(Math.floor(tx / 8), row, 4) - 0.5) * 0.12;
+      t += (0.45 - fy) * 0.35 + bulge * 0.12;
+      // bord inférieur arrondi de la tuile : les coins restent dans l'ombre de la rangée du dessous
+      const edge = fy > 0.66 && Math.abs(fx - 0.5) > 0.5 - (1 - fy) * 1.2;
+      if (edge) t = 0.02;
+      if (fx < 0.07) t -= 0.2;
+      let c = ramp(ROOF, t, x, y, 0.15);
+      if (noise(x / 6, y / 5, 21) > 0.8 && !edge && y > top + 16) c = mixRGB(c, hex('#5a8a4a'), 0.55);
+      s.set(x, y, c);
     }
   }
-  for (let x = 8; x < W - 8; x++) s.set(x, 4, ROOF[4]);
-  for (let x = 2; x < W - 2; x++) s.set(x, wallTop + 1, ROOF[0]);
+  // faîtage et débord de toit
+  for (let x = 6; x < W - 6; x++) {
+    s.set(x, top, ROOF[5]);
+    s.set(x, top + 1, ROOF[4]);
+    s.set(x, top + 2, ROOF[1]);
+  }
+  for (let x = 1; x < W - 1; x++) {
+    s.set(x, bottom - 1, ROOF[1]);
+    s.set(x, bottom, ROOF[0]);
+  }
+  // lucarne
+  const lx = 30;
+  const ly = 20;
+  for (let y = ly - 7; y < ly + 12; y++) {
+    const half = y < ly ? (y - (ly - 7)) * 1.4 + 1 : 10;
+    for (let x = Math.round(lx - half); x <= Math.round(lx + half); x++) s.set(x, y, y < ly ? ramp(ROOF, 0.75 - (x - lx) / 30, x, y, 0) : hex('#c2966a'));
+  }
+  for (let y = ly + 2; y < ly + 10; y++) for (let x = lx - 5; x <= lx + 5; x++) {
+    const glass = mixRGB(hex('#9ad8f0'), hex('#fff0b0'), (y - ly) / 10);
+    s.set(x, y, x === lx || y === ly + 6 ? hex('#8a5a3a') : glass);
+  }
+  s.set(lx - 3, ly + 3, 0xffffff);
+  s.set(lx - 4, ly + 4, 0xffffff);
+  for (let x = lx - 10; x <= lx + 10; x++) s.set(x, ly + 11, ROOF[0]);
   // cheminée
   for (let y = 0; y < 18; y++) {
     for (let x = 80; x < 90; x++) {
@@ -465,4 +496,255 @@ export function butterfly(color: string): Raster[] {
   for (const [x, y] of [[2, 0], [2, 1], [4, 0], [4, 1], [2, 2], [4, 2]]) closed.set(x, y, c);
   for (let y = 1; y < 5; y++) closed.set(3, y, hex('#2a1e2c'));
   return [open, closed];
+}
+
+// ------------------------------------------------------------------ potager
+
+const LEAF = ['#1f5a2e', '#2f7a3a', '#4a9a44', '#6ec05a'].map(hex);
+
+function leaf(r: Raster, x: number, y: number, dx: number, dy: number, len: number, tone = 2): void {
+  for (let k = 0; k < len; k++) {
+    const px = Math.round(x + dx * k);
+    const py = Math.round(y + dy * k);
+    r.set(px, py, LEAF[k === len - 1 ? 3 : tone]);
+    if (k > 0 && k < len - 1) r.set(px + (dx > 0 ? 0 : 1), py + 1, LEAF[1]);
+  }
+}
+
+/** Une plante du potager, vue de dessus, selon son stade (0 graine → 3 prête). */
+export function cropArt(crop: 'radis' | 'fraise' | 'tournesol' | 'lavande', st: 0 | 1 | 2 | 3): Raster {
+  const tall = crop === 'tournesol' && st >= 2;
+  const r = new Raster(16, tall ? 30 : 18);
+  const bx = 8;
+  const by = r.h - 3;
+  if (st === 0) {
+    r.ellipse(bx, by, 4, 1.8, hex('#4a2e20'));
+    r.set(bx - 1, by - 1, hex('#e8d8a0'));
+    r.set(bx + 2, by, hex('#e8d8a0'));
+    return r;
+  }
+  r.shadow(bx, by + 1, 5, 1.5, 0.25);
+  if (st === 1) {
+    leaf(r, bx, by, -1, -1, 3);
+    leaf(r, bx, by, 1, -1, 3);
+    r.set(bx, by, LEAF[1]);
+    r.outline(hex('#173a22'));
+    return r;
+  }
+  if (crop === 'radis') {
+    for (const [dx, dy, l] of [[-1, -1, 5], [1, -1, 5], [0, -1, 6], [-1.4, -0.4, 4], [1.4, -0.4, 4]] as const) leaf(r, bx, by - 1, dx, dy, l);
+    if (st === 3) {
+      r.ellipse(bx, by, 3, 2.2, (nx, ny) => (nx < -0.2 && ny < 0 ? hex('#ff7a8a') : hex('#e02a4a')));
+      r.set(bx - 1, by - 1, 0xffffff);
+    }
+  } else if (crop === 'fraise') {
+    for (const [dx, dy, l] of [[-1, -0.6, 5], [1, -0.6, 5], [-0.4, -1, 5], [0.5, -1, 5], [0, 0.3, 3]] as const) leaf(r, bx, by - 2, dx, dy, l);
+    if (st === 3) {
+      for (const [fx, fy] of [[-4, 0], [3, -1], [0, -5]]) {
+        r.ellipse(bx + fx, by + fy, 2, 2.3, (nx, ny) => (nx < 0 && ny < -0.2 ? hex('#ff6a6a') : hex('#d8243a')));
+        r.set(bx + fx, by + fy - 2, LEAF[3]);
+        r.set(bx + fx - 1, by + fy, hex('#ffe08a'));
+        r.set(bx + fx + 1, by + fy + 1, hex('#ffe08a'));
+      }
+    }
+  } else if (crop === 'lavande') {
+    for (let k = -3; k <= 3; k++) {
+      const h = 6 + (3 - Math.abs(k)) * 1.5;
+      for (let y = 0; y < h; y++) {
+        const px = bx + k + Math.round(k * y * 0.08);
+        const py = by - y;
+        const top = y > h - (st === 3 ? 5 : 2);
+        r.set(px, py, top ? (st === 3 ? (y % 2 ? hex('#9a6ae0') : hex('#c8a0ff')) : LEAF[3]) : LEAF[k % 2 ? 1 : 2]);
+      }
+    }
+  } else {
+    // tournesol : grande tige, feuilles, et la fleur quand elle est prête
+    const stemTop = st === 3 ? 14 : 10;
+    for (let y = by; y > stemTop; y--) {
+      r.set(bx, y, LEAF[2]);
+      r.set(bx + 1, y, LEAF[1]);
+    }
+    leaf(r, bx, by - 6, -1, -0.4, 5);
+    leaf(r, bx + 1, by - 10, 1, -0.4, 5);
+    if (st === 3) {
+      r.ellipse(bx, 9, 6.5, 6.5, (nx, ny) => {
+        const d = Math.hypot(nx, ny);
+        const ang = Math.atan2(ny, nx);
+        if (d > 0.55 && Math.cos(ang * 7) < -0.6 && d > 0.85) return null;
+        if (d < 0.5) return d < 0.25 && nx < 0 ? hex('#8a5a2a') : hex('#5a3418');
+        return nx + ny < -0.3 ? hex('#ffe066') : hex('#f4b41a');
+      });
+    } else {
+      r.ellipse(bx, stemTop, 2.5, 2.5, LEAF[2]);
+    }
+  }
+  r.outline(hex('#173a22'));
+  return r;
+}
+
+/** Icône d'objet récolté (pour le sac et les menus), 12×12. */
+export function itemIcon(crop: 'radis' | 'fraise' | 'tournesol' | 'lavande'): Raster {
+  const r = new Raster(12, 12);
+  if (crop === 'radis') {
+    r.ellipse(6, 7.5, 3.6, 3.4, (nx, ny) => (nx < -0.2 && ny < -0.1 ? hex('#ff8a9a') : ny > 0.5 ? hex('#b01a3a') : hex('#e02a4a')));
+    for (const [x, y] of [[4, 2], [5, 3], [6, 1], [6, 2], [7, 3], [8, 2]]) r.set(x, y, LEAF[2]);
+    r.set(6, 11, hex('#f0e0e0'));
+    r.set(4, 6, 0xffffff);
+  } else if (crop === 'fraise') {
+    r.ellipse(6, 7, 4, 4.2, (nx, ny) => (ny > 0.7 && Math.abs(nx) > 0.3 ? null : nx < -0.1 && ny < 0 ? hex('#ff6a6a') : hex('#d8243a')));
+    for (const [x, y] of [[4, 6], [7, 5], [6, 8], [8, 8], [5, 9]]) r.set(x, y, hex('#ffe08a'));
+    for (const [x, y] of [[4, 2], [5, 3], [6, 2], [7, 3], [8, 2], [6, 1]]) r.set(x, y, LEAF[2]);
+  } else if (crop === 'tournesol') {
+    r.ellipse(6, 6, 5.5, 5.5, (nx, ny) => {
+      const d = Math.hypot(nx, ny);
+      if (d < 0.45) return hex('#5a3418');
+      return Math.cos(Math.atan2(ny, nx) * 7) < -0.5 && d > 0.8 ? null : nx + ny < -0.2 ? hex('#ffe066') : hex('#f4b41a');
+    });
+    r.set(5, 5, hex('#8a5a2a'));
+  } else {
+    for (let k = 0; k < 3; k++) {
+      for (let y = 1; y < 10; y++) {
+        const x = 4 + k * 2 + (y > 6 ? (1 - k) : 0);
+        r.set(x, y, y < 6 ? (y % 2 ? hex('#9a6ae0') : hex('#c8a0ff')) : LEAF[2]);
+      }
+    }
+    r.rect(3, 8, 7, 1, hex('#e8c060'));
+  }
+  r.outline(hex('#2a1e2c'));
+  return r;
+}
+
+/** Sachet de graines (papier kraft avec un dessin de la plante). */
+export function seedIcon(crop: 'radis' | 'fraise' | 'tournesol' | 'lavande'): Raster {
+  const r = new Raster(12, 14);
+  for (let y = 1; y < 13; y++) for (let x = 1; x < 11; x++) r.set(x, y, y < 3 ? hex('#c8a070') : hex('#e8cc98'));
+  const icon = itemIcon(crop);
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) if (icon.alpha(x, y) && icon.get(x, y) !== hex('#2a1e2c')) r.set(2 + Math.floor(x * 0.66), 4 + Math.floor(y * 0.66), icon.get(x, y));
+  r.outline(hex('#5a3a24'));
+  return r;
+}
+
+export function lantern(): Raster {
+  const r = new Raster(10, 26);
+  r.shadow(5, 24, 4, 1.4);
+  r.rect(4, 8, 2, 16, hex('#4a3226'));
+  r.set(4, 8, hex('#6a4a34'));
+  r.rect(2, 2, 6, 7, hex('#2a2a34'));
+  r.rect(3, 3, 4, 5, hex('#ffe08a'));
+  r.set(3, 3, hex('#fff6d0'));
+  r.rect(1, 1, 8, 1, hex('#2a2a34'));
+  r.set(4, 0, hex('#2a2a34'));
+  r.set(5, 0, hex('#2a2a34'));
+  r.outline(hex('#1a1420'));
+  return r;
+}
+
+export function shippingBin(): Raster {
+  const r = new Raster(22, 18);
+  r.shadow(11, 16, 10, 2);
+  const W = ['#6a4028', '#8a5634', '#aa7044', '#c88c58'].map(hex);
+  for (let y = 5; y < 16; y++) for (let x = 1; x < 21; x++) r.set(x, y, W[(y - 5) % 4 === 3 ? 0 : x < 3 ? 3 : 2]);
+  for (let y = 1; y < 6; y++) for (let x = 0; x < 22; x++) r.set(x, y, y === 1 ? W[3] : y === 5 ? W[0] : W[2]);
+  for (const x of [1, 20]) for (let y = 1; y < 16; y++) r.set(x, y, hex('#5a5a6a'));
+  r.rect(9, 6, 4, 3, hex('#e0b048'));
+  r.set(10, 7, hex('#6a4a1a'));
+  r.outline(hex('#241a1e'));
+  return r;
+}
+
+export function seedStand(): Raster {
+  const r = new Raster(26, 24);
+  r.shadow(13, 22, 12, 2);
+  const W = ['#5a3a24', '#8a5a36', '#b07a4a'].map(hex);
+  // pieds, plateau incliné, auvent rayé
+  for (const x of [3, 21]) r.rect(x, 8, 2, 14, W[0]);
+  for (let y = 12; y < 18; y++) for (let x = 1; x < 25; x++) r.set(x, y, y === 12 ? W[2] : W[1]);
+  for (let x = 0; x < 26; x++) for (let y = 3; y < 8; y++) r.set(x, y, Math.floor(x / 3) % 2 ? 0xfff4e0 : hex('#e8584a'));
+  for (let x = 0; x < 26; x += 3) r.set(x + 1, 8, Math.floor(x / 3) % 2 ? 0xfff4e0 : hex('#e8584a'));
+  const cols = ['#e02a4a', '#d8243a', '#f4b41a', '#9a6ae0'].map(hex);
+  cols.forEach((c, k) => {
+    r.rect(3 + k * 5, 13, 4, 4, hex('#e8cc98'));
+    r.rect(4 + k * 5, 14, 2, 2, c);
+  });
+  r.outline(hex('#241a1e'));
+  return r;
+}
+
+/** L'aquarium du village : murs crème, toit turquoise, grande baie vitrée pleine de poissons. */
+export function aquariumHall(): Raster {
+  const W = 104;
+  const H = 88;
+  const r = new Raster(W, H);
+  r.shadow(52, 83, 52, 6, 0.3);
+  const s = new Raster(W, H);
+  const wallTop = 40;
+  const wallBot = 80;
+  const STONE = ['#b8a890', '#d8c8a8', '#ece0c4', '#fff4dc'].map(hex);
+  for (let y = wallTop; y < wallBot; y++) {
+    for (let x = 4; x < W - 4; x++) {
+      const bx = Math.floor((x + (Math.floor(y / 5) % 2) * 5) / 10);
+      const joint = (x + (Math.floor(y / 5) % 2) * 5) % 10 === 0 || y % 5 === 0;
+      s.set(x, y, joint ? STONE[0] : ramp(STONE, 0.45 + hash(bx, Math.floor(y / 5), 3) * 0.4 - x / W * 0.2, x, y, 0.2));
+    }
+  }
+  for (let x = 4; x < W - 4; x++) for (let y = wallTop; y < wallTop + 3; y++) s.set(x, y, mixRGB(s.get(x, y), 0x1e1a2a, 0.4 - (y - wallTop) * 0.12));
+  // grande baie en arche : de l'eau, des algues et des poissons
+  const ax = 10;
+  const aw = 44;
+  const ay = 46;
+  const ah = 30;
+  for (let y = ay - 8; y < ay + ah; y++) {
+    for (let x = ax; x < ax + aw; x++) {
+      const dx = (x - ax - aw / 2) / (aw / 2);
+      const archTop = ay - 8 + (dx * dx) * 8;
+      if (y < archTop) continue;
+      const frame = y < archTop + 2 || x < ax + 2 || x >= ax + aw - 2 || y >= ay + ah - 2;
+      if (frame) {
+        s.set(x, y, hex('#3a8a8a'));
+        continue;
+      }
+      const k = (y - ay + 8) / (ah + 8);
+      let c = mixRGB(hex('#6ad8e8'), hex('#1f6fa8'), k);
+      if (Math.sin(x / 3 + y / 7) > 0.92) c = mixRGB(c, 0xffffff, 0.35);
+      s.set(x, y, c);
+    }
+  }
+  for (const [fx, fy, col] of [[ax + 12, ay + 6, '#ff8a2a'], [ax + 28, ay + 2, '#ffd23a'], [ax + 20, ay + 16, '#ff6aa0'], [ax + 34, ay + 14, '#6ae0ff']] as const) {
+    s.rect(fx, fy, 5, 3, hex(col));
+    s.set(fx - 1, fy, hex(col));
+    s.set(fx - 1, fy + 2, hex(col));
+    s.set(fx + 4, fy + 1, 0x2a1e2c);
+  }
+  for (let k = 0; k < 5; k++) for (let y = ay + ah - 3; y > ay + ah - 12 + (k % 2) * 3; y--) s.set(ax + 6 + k * 8 + (y % 3 === 0 ? 1 : 0), y, hex('#3aa05a'));
+  // portes vitrées
+  const dx = 66;
+  for (let y = 54; y < wallBot; y++) for (let x = dx; x < dx + 22; x++) {
+    const edge = x === dx || x === dx + 21 || y === 54 || x === dx + 10 || x === dx + 11;
+    s.set(x, y, edge ? hex('#3a8a8a') : mixRGB(hex('#bfe8f2'), hex('#6ab0d0'), (y - 54) / 26));
+  }
+  s.set(dx + 3, 58, 0xffffff);
+  s.set(dx + 14, 58, 0xffffff);
+  s.rect(dx - 2, wallBot, 26, 2, STONE[0]);
+  // toit turquoise en tuiles et enseigne
+  const ROOF = ['#1f4a58', '#2a6a78', '#3a8a94', '#5aaab0', '#8ad0d0'].map(hex);
+  for (let y = 4; y < wallTop + 2; y++) {
+    const inset = Math.max(0, 5 - (y - 4));
+    for (let x = inset; x < W - inset; x++) {
+      const row = Math.floor((y - 4) / 5);
+      const tx = x + (row % 2) * 3;
+      const fy = ((y - 4) % 5) / 5;
+      const fx = (tx % 6) / 6;
+      const edge = fy > 0.6 && Math.abs(fx - 0.5) > 0.5 - (1 - fy) * 1.2;
+      const t = edge ? 0 : 0.5 + (1 - (y - 4) / wallTop) * 0.3 - x / W * 0.2 + (0.4 - fy) * 0.3;
+      s.set(x, y, ramp(ROOF, t, x, y, 0.1));
+    }
+  }
+  for (let x = 6; x < W - 6; x++) s.set(x, 4, ROOF[4]);
+  for (let x = 0; x < W; x++) s.set(x, wallTop + 1, ROOF[0]);
+  s.rect(30, 14, 44, 14, hex('#fff4dc'));
+  s.rect(30, 14, 44, 1, hex('#e0b048'));
+  s.rect(30, 27, 44, 1, hex('#a87a28'));
+  s.outline(hex('#241a24'));
+  r.draw(s, 0, 0);
+  return r;
 }

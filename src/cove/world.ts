@@ -1,10 +1,10 @@
 // Placement des décors dans la crique et grille de passage.
 import { hash } from './raster';
-import { baseWalkable, COLS, HOUSE, MAP_ROWS, PIER, ROWS, TILE } from './map';
+import { AQUARIUM, baseWalkable, COLS, HOUSE, MAP_ROWS, PIER, ROWS, TILE } from './map';
 
 export interface Prop {
   kind: 'oak' | 'autumn' | 'pine' | 'bush' | 'berry' | 'rock' | 'bigrock' | 'reeds' | 'lily' | 'lilyflower' | 'flowers'
-    | 'cottage' | 'pier' | 'fence' | 'mailbox' | 'bench' | 'boat';
+    | 'cottage' | 'pier' | 'fence' | 'mailbox' | 'bench' | 'boat' | 'lantern' | 'bin' | 'stand' | 'aquarium';
   /** Position du pied de l'objet (origine bas-centre), en px. */
   x: number;
   y: number;
@@ -31,12 +31,14 @@ export function buildWorld(): World {
     for (let tx = 0; tx < COLS; tx++) {
       if (at(tx, ty) !== 'T') continue;
       if ((tx + ty) % 2 === 1 && hash(tx, ty, 1) < 0.7) continue;
+      // on dégage les abords de l'aquarium
+      if (tx >= AQUARIUM.x - 1 && tx <= AQUARIUM.x + AQUARIUM.w && ty >= AQUARIUM.y - 1 && ty <= AQUARIUM.y + AQUARIUM.h + 1) continue;
       const kind = hash(tx, ty, 2) < 0.35 ? 'pine' : hash(tx, ty, 3) < 0.12 ? 'autumn' : 'oak';
       props.push({ kind, x: tx * TILE + 8 + (hash(tx, ty, 4) - 0.5) * 8, y: ty * TILE + 14 + (hash(tx, ty, 5) - 0.5) * 6, seed: tx * 97 + ty });
     }
   }
   // quelques arbres isolés dans la prairie
-  for (const [tx, ty, kind] of [[16, 9, 'oak'], [4, 20, 'oak'], [28, 22, 'autumn'], [19, 25, 'oak'], [33, 16, 'pine'], [2, 26, 'pine']] as const) {
+  for (const [tx, ty, kind] of [[16, 9, 'oak'], [11, 24, 'oak'], [28, 22, 'autumn'], [19, 25, 'oak'], [33, 16, 'pine'], [26, 26, 'pine']] as const) {
     props.push({ kind, x: tx * TILE + 8, y: ty * TILE + 14, seed: tx * 31 + ty });
     block(tx, ty);
   }
@@ -74,6 +76,22 @@ export function buildWorld(): World {
   props.push({ kind: 'bench', x: 20 * TILE, y: 17 * TILE + 12, seed: 1 });
   block(19, 17);
   block(20, 17);
+
+  // l'aquarium du village
+  const A = AQUARIUM;
+  props.push({ kind: 'aquarium', x: (A.x + 3.5) * TILE, y: (A.y + A.h) * TILE + 4, seed: 1 });
+  for (let ty = A.y + 3; ty < A.y + A.h; ty++) for (let tx = A.x; tx < A.x + A.w; tx++) block(tx, ty);
+  // lanternes le long des chemins (elles s'allument le soir)
+  for (const [tx, ty] of [[11.3, 17.4], [7.4, 23.4], [13.3, 25.3], [15.4, 31.2], [9.9, 10.7]]) {
+    props.push({ kind: 'lantern', x: tx * TILE, y: ty * TILE, seed: 1 });
+    block(Math.floor(tx), Math.floor(ty - 0.2));
+  }
+  props.push({ kind: 'lantern', x: (PIER.x + PIER.w) * TILE - 2, y: (PIER.y + PIER.h) * TILE - 2, seed: 1 });
+  // coffre d'expédition et présentoir à graines
+  props.push({ kind: 'bin', x: 10.9 * TILE, y: 11.9 * TILE, seed: 1 });
+  block(10, 11);
+  props.push({ kind: 'stand', x: 6.7 * TILE, y: 12.9 * TILE, seed: 1 });
+  block(6, 12);
 
   // le ponton et la barque
   props.push({ kind: 'pier', x: (PIER.x + PIER.w / 2) * TILE, y: PIER.y * TILE, seed: 1, flat: true });

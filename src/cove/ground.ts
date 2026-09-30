@@ -22,7 +22,7 @@ const isWaterId = (id: number) => id === 4 || id === 5;
 const isGrassId = (id: number) => id <= 1;
 
 /** Distance (en px) de chaque pixel au pixel le plus proche vérifiant `target`. */
-function distanceField(ids: Uint8Array, w: number, h: number, target: (id: number) => boolean): Float32Array {
+export function distanceField(ids: Uint8Array, w: number, h: number, target: (id: number) => boolean): Float32Array {
   const d = new Float32Array(w * h).fill(1e6);
   for (let i = 0; i < w * h; i++) if (target(ids[i])) d[i] = 0;
   const D = 1.414;
