@@ -1,7 +1,7 @@
 // Grands portraits des habitués (64×64), peints au pixel : expressions, clignement
 // des yeux et bouche qui bouge pendant qu'ils parlent.
 import { hash, hex, mixRGB, noise, ramp, Raster, type RGB } from './raster';
-import type { CastId } from './cast';
+import type { Npc } from './dialogue';
 
 export type Mood = 'neutral' | 'happy' | 'sad' | 'surprised' | 'grumpy' | 'blush';
 export const MOODS: Mood[] = ['neutral', 'happy', 'sad', 'surprised', 'grumpy', 'blush'];
@@ -11,16 +11,30 @@ interface PortraitSpec {
   hair: string;
   eyes: string;
   brows: string;
-  style: 'marcel' | 'lila' | 'gobie' | 'nina';
-  outfit: string;
-  outfit2: string;
+  hairKind: 'cap' | 'curly' | 'long' | 'bob' | 'undercut' | 'waves';
+  outfit: 'raincoat' | 'collar' | 'labcoat' | 'camera' | 'apron' | 'lifeguard' | 'guitar' | 'peacoat';
+  cloth: string;
+  cloth2: string;
+  child?: boolean;
+  bun?: boolean;
+  glasses?: boolean;
+  freckles?: boolean;
+  bushyBrows?: boolean;
+  pencil?: boolean;
+  earring?: string;
+  flour?: boolean;
+  pin?: string[];
 }
 
-const SPECS: Record<Exclude<CastId, 'player'>, PortraitSpec> = {
-  marcel: { skin: '#e4ac84', hair: '#d8d8e0', eyes: '#4a6a9a', brows: '#e8e8f0', style: 'marcel', outfit: '#f0b030', outfit2: '#2e4e86' },
-  lila: { skin: '#a46a44', hair: '#2a1a1e', eyes: '#3a2418', brows: '#1a1014', style: 'lila', outfit: '#ff7ab0', outfit2: '#ffffff' },
-  gobie: { skin: '#f6d4b4', hair: '#ecc464', eyes: '#3a8a6a', brows: '#b88a3a', style: 'gobie', outfit: '#f6f6f2', outfit2: '#5a7ac0' },
-  nina: { skin: '#fad8bc', hair: '#8a64d4', eyes: '#6a3a8a', brows: '#5a3a9a', style: 'nina', outfit: '#40c0b4', outfit2: '#2a2a3a' },
+const SPECS: Record<Npc, PortraitSpec> = {
+  marcel: { skin: '#e4ac84', hair: '#d8d8e0', eyes: '#4a6a9a', brows: '#e8e8f0', hairKind: 'cap', outfit: 'raincoat', cloth: '#f0b030', cloth2: '#2e4e86', bushyBrows: true },
+  lila: { skin: '#a46a44', hair: '#2a1a1e', eyes: '#3a2418', brows: '#1a1014', hairKind: 'curly', outfit: 'collar', cloth: '#ff7ab0', cloth2: '#ffffff', child: true, bun: true, freckles: true },
+  gobie: { skin: '#f6d4b4', hair: '#ecc464', eyes: '#3a8a6a', brows: '#b88a3a', hairKind: 'long', outfit: 'labcoat', cloth: '#f6f6f2', cloth2: '#5a7ac0', glasses: true, pencil: true },
+  nina: { skin: '#fad8bc', hair: '#8a64d4', eyes: '#6a3a8a', brows: '#5a3a9a', hairKind: 'bob', outfit: 'camera', cloth: '#40c0b4', cloth2: '#2a2a3a', earring: '#ffd23a' },
+  elio: { skin: '#d8a070', hair: '#4a2a1a', eyes: '#5a3a1a', brows: '#3a2014', hairKind: 'curly', outfit: 'apron', cloth: '#f4ece0', cloth2: '#e89a5a', flour: true, pin: ['#d60270', '#9b4f96', '#0038a8'] },
+  maelle: { skin: '#f8d0b0', hair: '#d8562a', eyes: '#3a8a5a', brows: '#b8441a', hairKind: 'undercut', outfit: 'lifeguard', cloth: '#e83a3a', cloth2: '#ffffff', freckles: true, pin: ['#d62900', '#ffffff', '#d462a6'] },
+  yanis: { skin: '#7a4a2e', hair: '#1a1014', eyes: '#3a2014', brows: '#1a1014', hairKind: 'waves', outfit: 'guitar', cloth: '#3a6ad0', cloth2: '#8a5a34', earring: '#ffd23a', pin: ['#078d70', '#ffffff', '#3d1a78'] },
+  camille: { skin: '#e8c098', hair: '#e0e0ea', eyes: '#5a6aa0', brows: '#a0a0b0', hairKind: 'long', outfit: 'peacoat', cloth: '#2a3a6a', cloth2: '#e0b048', glasses: true, pin: ['#ff218c', '#ffd800', '#21b1ff'] },
 };
 
 const S = 64;
@@ -53,22 +67,79 @@ export interface PortraitOpts {
   talk?: boolean;
 }
 
-export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster {
+/** Octave, le conservateur : un poulpe distingué, monocle et nœud papillon. */
+function octavePortrait(o: PortraitOpts): Raster {
+  const r = new Raster(S, S);
+  const c = tones('#b86ad0');
+  // tentacules qui s'enroulent en bas
+  for (let a = 0; a < 6; a++) {
+    const bx = 8 + a * 9.5;
+    for (let k = 0; k < 16; k++) {
+      const x = Math.round(bx + Math.sin(k / 3 + a) * 3);
+      const y = 44 + k;
+      r.ellipse(x, y, 3 - k * 0.1, 2, (nx, ny, px, py) => ramp(c, 0.55 - ny * 0.3 - nx * 0.2, px, py, 0.1));
+      if (k % 4 === 2) r.set(x, y + 1, c[4]);
+    }
+  }
+  // tête
+  r.ellipse(32, 26, 21, 22, (nx, ny, x, y) => {
+    let t = 0.62 - nx * 0.3 - ny * 0.3;
+    if (hash(x >> 1, y >> 1, 4) < 0.06) t += 0.3;
+    return ramp(c, t, x, y, 0.1);
+  });
+  // yeux
+  const m = o.mood;
+  for (const side of [-1, 1]) {
+    const ex = 32 + side * 9;
+    const ey = 28;
+    if (o.blink || m === 'happy') {
+      for (let k = -4; k <= 4; k++) r.set(ex + k, ey + (m === 'happy' && !o.blink ? -Math.round(Math.sqrt(16 - k * k) * 0.4) : 0), INK);
+    } else {
+      const big = m === 'surprised' ? 1.3 : 1;
+      r.ellipse(ex, ey, 5.5 * big, 6 * big, 0xfff8ec);
+      r.ellipse(ex + 1, ey + 1, 3, 3.5, (_nx, ny) => (ny < -0.3 ? hex('#3a2a4a') : hex('#1a1024')));
+      r.set(ex, ey - 1, 0xffffff);
+      r.set(ex - 1, ey - 1, 0xffffff);
+      if (m === 'sad' || m === 'grumpy') for (let k = -5; k <= 5; k++) r.set(ex + k, ey - 5 + (m === 'sad' ? (k * side > 0 ? 1 : 0) : (k * side > 0 ? 0 : 1)), c[0]);
+    }
+  }
+  // monocle doré et sa chaîne
+  for (let a = 0; a < 48; a++) {
+    const ang = (a / 48) * Math.PI * 2;
+    r.set(Math.round(41 + Math.cos(ang) * 7.5), Math.round(28 + Math.sin(ang) * 7.5), hex('#e0b048'));
+  }
+  for (let k = 0; k < 14; k++) r.set(47 + Math.floor(k / 3), 33 + k, k % 2 ? hex('#e0b048') : hex('#a87a28'));
+  // bouche et joues
+  if (m === 'surprised') r.ellipse(32, 38, 2, 2.5, INK);
+  else if (m === 'sad') for (let k = -3; k <= 3; k++) r.set(32 + k, 38 + (Math.abs(k) > 1 ? 1 : 0), INK);
+  else for (let k = -3; k <= 3; k++) r.set(32 + k, 38 - (Math.abs(k) > 1 ? 1 : 0), INK);
+  if (o.talk) r.rect(31, 38, 3, 2, hex('#6a1a3a'));
+  if (m === 'blush' || m === 'happy') for (const bx of [20, 42]) r.ellipse(bx, 35, 3, 1.5, mixRGB(c[2], hex('#ff6a8a'), 0.5));
+  // nœud papillon
+  r.ellipse(26, 47, 5, 3.5, hex('#e8453c'));
+  r.ellipse(38, 47, 5, 3.5, hex('#e8453c'));
+  r.ellipse(32, 47, 2.5, 2.5, hex('#a02a2a'));
+  r.outline(INK);
+  return r;
+}
+
+export function portrait(id: Npc | 'octave', o: PortraitOpts): Raster {
+  if (id === 'octave') return octavePortrait(o);
   const sp = SPECS[id];
   const r = new Raster(S, S);
   const skin = tones(sp.skin);
   const hair = tones(sp.hair);
-  const cloth = tones(sp.outfit);
-  const cloth2 = tones(sp.outfit2);
+  const cloth = tones(sp.cloth);
+  const cloth2 = tones(sp.cloth2);
   const cx = 32;
   const cy = 27;
-  const child = sp.style === 'lila';
+  const child = !!sp.child;
   const headRx = child ? 17 : 16;
   const headRy = child ? 17 : 18.5;
 
   // ---------------------------------------------------- cheveux de derrière
   const back = new Raster(S, S);
-  if (sp.style === 'gobie') {
+  if (sp.hairKind === 'long') {
     for (let y = 10; y < 62; y++) {
       for (let x = 8; x < 57; x++) {
         const dx = x - cx;
@@ -79,7 +150,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       }
     }
   }
-  if (sp.style === 'lila') {
+  if (sp.bun) {
     // le chignon
     back.ellipse(cx, 6, 9, 7, (nx, ny, x, y) => ramp(hair, 0.55 - ny * 0.4 - nx * 0.2 + (hash(x, y, 1) - 0.5) * 0.25, x, y, 0.2));
   }
@@ -97,19 +168,19 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     }
   }
   // détails de tenue
-  if (sp.style === 'marcel') {
+  if (sp.outfit === 'raincoat') {
     // ciré jaune : col relevé et boutons
     for (let y = 46; y < 52; y++) for (let x = cx - 11 + (y - 46); x < cx - 5; x++) body.set(x, y, cloth[4]);
     for (let y = 46; y < 52; y++) for (let x = cx + 5; x < cx + 11 - (y - 46); x++) body.set(x, y, cloth[3]);
     for (let y = 52; y < S; y += 5) body.set(cx, y, hex('#3a3a4a')), body.set(cx, y + 1, hex('#6a6a7a'));
     for (let y = 50; y < S; y++) body.set(cx - 1, y, cloth[1]);
-  } else if (sp.style === 'lila') {
+  } else if (sp.outfit === 'collar') {
     // col Claudine blanc
     body.ellipse(cx - 5, 49, 6, 3.5, (_nx, ny, x, y) => ramp(cloth2, 0.7 - ny * 0.3, x, y, 0));
     body.ellipse(cx + 5, 49, 6, 3.5, (_nx, ny, x, y) => ramp(cloth2, 0.55 - ny * 0.3, x, y, 0));
     body.set(cx, 52, hex('#ff4a8a'));
     body.set(cx - 1, 52, hex('#ff4a8a'));
-  } else if (sp.style === 'gobie') {
+  } else if (sp.outfit === 'labcoat') {
     // blouse blanche, revers, chemise bleue, stylo dans la poche
     for (let y = 46; y < S; y++) {
       const open = Math.max(0, 8 - (y - 46) * 0.45);
@@ -120,6 +191,38 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     for (let y = 54; y < 62; y++) body.set(cx + 15, y, hex('#e8453c'));
     body.set(cx + 15, 53, hex('#3a3a4a'));
     for (let x = cx + 12; x < cx + 20; x++) body.set(x, 57, cloth[1]);
+  } else if (sp.outfit === 'apron') {
+    // tablier de boulanger sur une marinière
+    for (let y = 46; y < S; y++) for (let x = cx - 27; x <= cx + 27; x++) if (body.alpha(x, y)) body.set(x, y, (y % 4 < 2) ? ramp(cloth2, 0.6 - (x - cx) / 60, x, y, 0) : ramp(cloth, 0.7, x, y, 0));
+    for (let y = 50; y < S; y++) {
+      const half = 11 + (y - 50) * 0.3;
+      for (let x = Math.round(cx - half); x <= Math.round(cx + half); x++) body.set(x, y, ramp(cloth, 0.65 - (x - cx) / 40, x, y, 0));
+    }
+    for (let k = 0; k < 6; k++) body.set(cx - 11 + k, 49 - k, cloth[2]), body.set(cx + 11 - k, 49 - k, cloth[1]);
+    body.set(cx - 5, 58, hex('#d8c8a8'));
+    body.set(cx - 4, 59, hex('#d8c8a8'));
+  } else if (sp.outfit === 'lifeguard') {
+    // veste rouge de sauveteuse, fermeture éclair et croix blanche
+    for (let y = 47; y < S; y++) body.set(cx, y, hex('#b8b8c8'));
+    for (let y = 46; y < 50; y++) for (let x = cx - 7; x <= cx + 7; x++) body.set(x, y, cloth[1]);
+    body.rect(cx - 17, 53, 7, 2, cloth2[4]);
+    body.rect(cx - 15, 51, 3, 6, cloth2[4]);
+  } else if (sp.outfit === 'guitar') {
+    // chemise ouverte et sangle de guitare
+    for (let y = 46; y < 52; y++) for (let x = cx - 4 + Math.floor((y - 46) / 2); x <= cx + 4 - Math.floor((y - 46) / 2); x++) body.set(x, y, skin[1]);
+    for (let k = 0; k < 20; k++) {
+      body.set(cx - 16 + k, 47 + k, cloth2[1]);
+      body.set(cx - 15 + k, 47 + k, cloth2[2]);
+    }
+  } else if (sp.outfit === 'peacoat') {
+    // caban marine à boutons dorés, broche étoile
+    for (let y = 46; y < S; y++) {
+      body.set(cx - 1, y, cloth[0]);
+      if ((y - 50) % 5 === 0 && y > 49) for (const bx of [cx - 5, cx + 4]) body.set(bx, y, cloth2[3]), body.set(bx, y + 1, cloth2[1]);
+    }
+    for (let y = 46; y < 52; y++) for (let x = cx - 12 + (y - 46); x < cx - 5; x++) body.set(x, y, cloth[3]);
+    for (let y = 46; y < 52; y++) for (let x = cx + 5; x < cx + 12 - (y - 46); x++) body.set(x, y, cloth[2]);
+    for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) body.set(cx + 14 + dx, 55 + dy, hex('#ffd23a'));
   } else {
     // veste turquoise, t-shirt sombre, sangle et appareil photo
     for (let y = 46; y < S; y++) {
@@ -136,6 +239,15 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     body.ellipse(cx + 8, 59, 3.2, 3.2, (nx, ny) => (nx * nx + ny * ny < 0.3 ? hex('#8ac8f0') : hex('#101018')));
     body.set(cx + 7, 58, 0xffffff);
     body.rect(cx + 3, 55, 3, 1, hex('#e8453c'));
+  }
+  if (sp.pin) {
+    // le petit pin's sur la veste
+    const px = sp.outfit === 'peacoat' ? cx - 16 : cx + 10;
+    sp.pin.forEach((c, k) => body.rect(px, 53 + k * 2, 5, 2, hex(c)));
+    body.rect(px - 1, 52, 7, 1, hex('#2a1e2c'));
+    body.rect(px - 1, 59, 7, 1, hex('#2a1e2c'));
+    body.rect(px - 1, 52, 1, 8, hex('#2a1e2c'));
+    body.rect(px + 5, 52, 1, 8, hex('#2a1e2c'));
   }
   // cou
   for (let y = 40; y < 50; y++) for (let x = cx - 5; x <= cx + 5; x++) body.set(x, y, y < 45 ? skin[1] : ramp(skin, 0.45 - (x - cx) / 14, x, y, 0));
@@ -218,7 +330,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       for (let x = ex - half; x <= ex + half; x++) r.set(x, top - 1, INK);
       r.set(ex - half - 1, top, INK);
       r.set(ex + half + 1, top, INK);
-      if (sp.style !== 'marcel') {
+      if (!sp.bushyBrows) {
         r.set(ex + side * (half + 2), top - 1, INK);
         r.set(ex + side * (half + 2), top - 2, INK);
       }
@@ -235,7 +347,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       if (m === 'grumpy') dy = Math.round((k + 1) * 0.5);
       if (m === 'happy' || m === 'blush') dy = Math.abs(k) === 3 ? 1 : 0;
       r.set(x, by + dy, brow);
-      if (sp.style === 'marcel') r.set(x, by + dy - 1, brow); // gros sourcils broussailleux
+      if (sp.bushyBrows) r.set(x, by + dy - 1, brow); // gros sourcils broussailleux
     }
     // joues
     if (m === 'blush' || m === 'happy' || child) {
@@ -245,7 +357,10 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     }
   }
   for (const side of [-1, 1]) r.set(Math.round(cx + side * (eyeDX + 1)), eyeY + 5, side < 0 ? skin[4] : skin[3]);
-  if (sp.style === 'lila') {
+  if (sp.flour) {
+    for (const [fx, fy] of [[9, 4], [10, 4], [10, 5], [11, 3]]) r.set(cx + fx, eyeY + fy, 0xfff8f0);
+  }
+  if (sp.freckles) {
     // taches de rousseur
     for (const [fx, fy] of [[-8, 5], [-6, 6], [-9, 7], [7, 5], [9, 6], [6, 7]]) r.set(cx + fx, eyeY + fy, skin[1]);
   }
@@ -286,7 +401,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
 
   // ---------------------------------------------------- cheveux de devant, chapeaux, barbe, lunettes
   const front = new Raster(S, S);
-  if (sp.style === 'marcel') {
+  if (sp.hairKind === 'cap') {
     // barbe blanche fournie
     for (let y = eyeY + 5; y < 54; y++) {
       for (let x = cx - 18; x <= cx + 18; x++) {
@@ -308,7 +423,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     // mèches grises au-dessus des oreilles
     for (const side of [-1, 1]) for (let y = cy - 6; y < cy + 2; y++) for (let k = 0; k < 3; k++) front.set(cx + side * (headRx - 1 + k), y, ramp(hair, 0.5 + k * 0.1, 0, y, 0));
     // casquette de marin
-    const cap = tones(sp.outfit2);
+    const cap = tones(sp.cloth2);
     for (let y = 3; y < cy - 5; y++) {
       for (let x = cx - 19; x <= cx + 19; x++) {
         const nx = (x - cx) / 19;
@@ -322,7 +437,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       front.set(x, cy - 4, cap[1]);
     }
     for (let x = cx - 3; x <= cx + 3; x++) front.set(x, 12, hex('#e0b048')), front.set(x, 13, hex('#a87a28'));
-  } else if (sp.style === 'lila') {
+  } else if (sp.hairKind === 'curly') {
     // cheveux crépus bouclés autour du front, barrette
     for (let y = 6; y < cy - 2; y++) {
       for (let x = cx - 20; x <= cx + 20; x++) {
@@ -334,12 +449,14 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
         front.set(x, y, ramp(hair, 0.5 - nx * 0.3 - ny * 0.25 + (hash(x >> 1, y >> 1, 6) - 0.5) * 0.4, x, y, 0.3));
       }
     }
-    for (const side of [-1, 1]) for (let y = cy - 4; y < cy + 6; y++) {
+    for (const side of [-1, 1]) for (let y = cy - 4; y < cy + (sp.child ? 6 : 1); y++) {
       for (let k = 0; k < 3; k++) front.set(cx + side * (headRx + k - 1), y, ramp(hair, 0.35 + (hash(y, k, 8)) * 0.3, 0, y, 0));
     }
-    front.rect(cx + 8, 10, 6, 3, hex('#ff5a9a'));
-    front.set(cx + 9, 10, hex('#ffb0d0'));
-  } else if (sp.style === 'gobie') {
+    if (sp.bun) {
+      front.rect(cx + 8, 10, 6, 3, hex('#ff5a9a'));
+      front.set(cx + 9, 10, hex('#ffb0d0'));
+    }
+  } else if (sp.hairKind === 'long') {
     // frange balayée sur le côté, crayon oublié dans les cheveux
     for (let y = 4; y < cy - 1; y++) {
       for (let x = cx - 20; x <= cx + 20; x++) {
@@ -354,7 +471,34 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
     for (const side of [-1, 1]) for (let y = cy - 4; y < 46; y++) for (let k = 0; k < 4; k++) {
       front.set(cx + side * (headRx - 1 + k), y, ramp(hair, 0.45 + k * 0.05 + Math.sin(y / 2) * 0.1, 0, y, 0));
     }
-    for (let k = 0; k < 11; k++) front.set(cx - 19 + k, 11 - Math.floor(k / 3), k < 2 ? hex('#ffb0a0') : k > 8 ? hex('#3a3a4a') : hex('#ffd23a'));
+    if (sp.pencil) for (let k = 0; k < 11; k++) front.set(cx - 19 + k, 11 - Math.floor(k / 3), k < 2 ? hex('#ffb0a0') : k > 8 ? hex('#3a3a4a') : hex('#ffd23a'));
+  } else if (sp.hairKind === 'undercut') {
+    // coupe courte, côté rasé, mèche rabattue sur le côté
+    for (let y = 5; y < cy - 3; y++) {
+      for (let x = cx - 19; x <= cx + 19; x++) {
+        const nx = (x - cx) / 18.5;
+        const ny = (y - (cy - 3)) / 21;
+        if (nx * nx + ny * ny > 1) continue;
+        const sweep = cy - 10 + (cx + 12 - x) * 0.35;
+        if (y > sweep && nx > -0.55) continue;
+        front.set(x, y, ramp(hair, 0.5 - nx * 0.3 + Math.sin(x / 2.5 + y / 3) * 0.12, x, y, 0.2));
+      }
+    }
+    for (let y = cy - 6; y < cy + 3; y++) for (let k = 0; k < 3; k++) front.set(cx + headRx - 2 + k, y, mixRGB(hair[1], skin[1], 0.55));
+  } else if (sp.hairKind === 'waves') {
+    // cheveux ondulés jusqu'à la mâchoire, raie au milieu
+    for (let y = 5; y < 46; y++) {
+      for (let x = cx - 21; x <= cx + 21; x++) {
+        const nx = (x - cx) / 20.5;
+        const ny = (y - cy) / 23;
+        if (nx * nx + ny * ny > 1 && y < cy) continue;
+        const wave = Math.sin(y / 2.2) * 1.2;
+        if (Math.abs(x - cx) > 19.5 + wave) continue;
+        if (y > cy - 13 + Math.abs(x - cx) * 0.18 && Math.abs(x - cx) < 14.5) continue;
+        if (y > 43 - Math.abs(Math.sin(x / 2)) * 3) continue;
+        front.set(x, y, ramp(hair, 0.5 - nx * 0.2 + Math.sin(y / 2.2 + x / 6) * 0.2, x, y, 0.2));
+      }
+    }
   } else {
     // carré violet à frange droite, boucle d'oreille
     for (let y = 5; y < 46; y++) {
@@ -368,8 +512,10 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
         front.set(x, y, ramp(hair, 0.55 - nx * 0.25 + (y > 40 ? -0.2 : 0) + ((x & 3) === 0 ? 0.12 : 0), x, y, 0.25));
       }
     }
-    front.set(cx - headRx - 1, cy + 7, hex('#ffd23a'));
-    front.set(cx - headRx - 1, cy + 8, hex('#ffd23a'));
+  }
+  if (sp.earring) {
+    front.set(cx - headRx - 1, cy + 7, hex(sp.earring));
+    front.set(cx - headRx - 1, cy + 8, hex(sp.earring));
   }
   // ombre douce des cheveux sur le front
   for (let y = 1; y < S; y++) {
@@ -381,7 +527,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
       }
     }
   }
-  if (sp.style !== 'marcel') {
+  if (sp.hairKind !== 'cap') {
     for (let y = 0; y < cy - 3; y++) {
       for (let x = 0; x < S; x++) {
         if (!front.alpha(x, y)) continue;
@@ -394,7 +540,7 @@ export function portrait(id: Exclude<CastId, 'player'>, o: PortraitOpts): Raster
   fr.draw(front, 0, 0);
   edge(r, fr, mixRGB(hair[0], INK, 0.5));
 
-  if (sp.style === 'gobie') {
+  if (sp.glasses) {
     // lunettes rondes (par-dessus la frange)
     for (const side of [-1, 1]) {
       const ex = Math.round(cx + side * eyeDX);

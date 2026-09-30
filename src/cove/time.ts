@@ -1,6 +1,7 @@
 // Le temps dans la crique : une journée dure environ 14 minutes de jeu,
 // de 6 h à 2 h du matin. La lumière suit l'heure.
 import { mixRGB, type RGB } from './raster';
+import type { Npc } from './dialogue';
 
 export const DAY_START = 6 * 60;
 export const DAY_LATE = 24 * 60;
@@ -69,11 +70,19 @@ export function lighting(hour: number): { multiply: RGB; dark: number } {
 }
 
 /** Heures de présence des habitués dans la crique. */
-export const SCHEDULE: Record<'marcel' | 'lila' | 'gobie' | 'nina', [number, number]> = {
+export const SCHEDULE: Record<Npc, [number, number]> = {
   marcel: [6.5, 19],
   lila: [9, 18.5],
   gobie: [8, 20],
   nina: [10, 21.5],
+  elio: [6.2, 17],
+  maelle: [7, 18],
+  yanis: [11, 23],
+  camille: [16, 26],
 };
 
-export const present = (id: keyof typeof SCHEDULE, hour: number) => hour >= SCHEDULE[id][0] && hour < SCHEDULE[id][1];
+export function present(id: Npc, hour: number): boolean {
+  const [a, b] = SCHEDULE[id];
+  const h = hour < 6 ? hour + 24 : hour;
+  return h >= a && h < b;
+}
