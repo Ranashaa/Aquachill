@@ -1,11 +1,15 @@
 // La crique vue de dessus : on touche un endroit, le soigneur y marche ; en arrivant
 // près d'un habitué ou de la mare, la caméra se rapproche (le « focus »).
 import Phaser from 'phaser';
-import { renderGround, type GroundArt } from './ground';
-import { TILE, WORLD_H, WORLD_W, PIER } from './map';
+import type { GroundArt } from './ground';
+import { AQUARIUM, HOUSE, TILE, WORLD_H, WORLD_W, PIER } from './map';
+import * as G from './garden';
+import { dateText, DAY_LATE, DAY_MAX, DAY_START, hourOf, lighting, newClock, present, tick, timeText, type Clock } from './time';
 import {
-  bench, boat, bush, butterfly, cottage, fence, flowerPatch, koiTop, lilypad, mailbox, oak, pier, pine, reeds, rock, type KoiPattern,
+  aquariumHall, bench, boat, bush, butterfly, cottage, cropArt, fence, flowerPatch, itemIcon, koiTop, lantern, lilypad, mailbox, oak, pier, pine,
+  reeds, rock, seedIcon, seedStand, shippingBin, type KoiPattern,
 } from './props';
+import { textTexture } from '../sprites';
 import type { Raster } from './raster';
 import { buildWorld, type Prop, type World } from './world';
 import { actorSheet, frameIndex, type Dir } from './actors';
@@ -65,15 +69,32 @@ interface Save {
   rel: Record<Npc, Relation>;
   x: number;
   y: number;
+  clock: Clock;
+  farm: G.Farm;
 }
 
+const iconCache = new Map<string, string>();
+function iconUrl(key: string, make: () => Raster): string {
+  let u = iconCache.get(key);
+  if (!u) {
+    u = make().toCanvas().toDataURL();
+    iconCache.set(key, u);
+  }
+  return u;
+}
+const itemUrl = (c: G.Crop) => iconUrl(`item-${c}`, () => itemIcon(c));
+const seedUrl = (c: G.Crop) => iconUrl(`seed-${c}`, () => seedIcon(c));
+
 function loadSave(): Save {
-  const fresh: Save = { rel: { marcel: newRelation(), lila: newRelation(), gobie: newRelation(), nina: newRelation() }, x: 9.5 * TILE, y: 12.5 * TILE };
+  const fresh: Save = {
+    rel: { marcel: newRelation(), lila: newRelation(), gobie: newRelation(), nina: newRelation() },
+    x: 9.5 * TILE, y: 12.5 * TILE, clock: newClock(), farm: G.newFarm(),
+  };
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return fresh;
     const data = JSON.parse(raw) as Partial<Save>;
-    return { ...fresh, ...data, rel: { ...fresh.rel, ...data.rel } };
+    return { ...fresh, ...data, rel: { ...fresh.rel, ...data.rel }, farm: { ...fresh.farm, ...data.farm } };
   } catch {
     return fresh;
   }
@@ -97,8 +118,16 @@ export class CoveScene extends Phaser.Scene {
   private rodLine!: Phaser.GameObjects.Graphics;
   private bobber!: Phaser.GameObjects.Arc;
   private down = { x: 0, y: 0, t: 0 };
+  private lightRect!: Phaser.GameObjects.Rectangle;
+  private glows: { img: Phaser.GameObjects.Image; base: number }[] = [];
+  private fireflies: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
+  private plotObjs: Phaser.GameObjects.GameObject[] = [];
+  private hud!: { root: HTMLElement; date: HTMLElement; time: HTMLElement; sun: HTMLElement; coins: HTMLElement };
+  private veil!: HTMLElement;
+  private sleeping = false;
+  private hudT = 0;
 
-  constructor(private audio?: AudioEngine) {
+  constructor(private audio?: AudioEngine, private groundArt?: GroundArt) {
     super('Cove');
   }
 
@@ -108,7 +137,7 @@ export class CoveScene extends Phaser.Scene {
       return;
     }
     this.save = loadSave();
-    this.art = renderGround();
+    this.art = this.groundArt!;
     this.textures.addCanvas('cove-ground', this.art.base);
     this.art.water.forEach((c, i) => this.textures.addCanvas(`cove-water-${i}`, c));
     this.add.image(0, 0, 'cove-ground').setOrigin(0).setDepth(-10);
@@ -149,6 +178,8 @@ export class CoveScene extends Phaser.Scene {
     this.setupFishing();
     this.spawnKoi();
     this.spawnLife();
+    this.setupLighting();
+    this.drawPlots();
 
     // interface HTML (dialogues, vignette du focus)
     const root = document.getElementById('ui')!;
@@ -159,7 +190,9 @@ export class CoveScene extends Phaser.Scene {
     this.vignette.className = 'focus-vignette';
     this.hint = document.createElement('div');
     this.hint.className = 'cove-hint';
-    root.append(this.vignette, this.hint);
+    this.veil = document.createElement('div');
+    this.veil.className = 'night-veil';
+    root.append(this.vignette, this.hint, this.makeHud(), this.veil);
     this.ui = new DialogueUI(root);
 
     const cam = this.cameras.main;
@@ -298,6 +331,7 @@ export class CoveScene extends Phaser.Scene {
     // un habitué ?
     for (const [id, w] of this.npcs) {
       const s = w.sprite;
+      if (!s.visible) continue;
       if (Math.abs(x - s.x) < 10 && y < s.y + 3 && y > s.y - 26) {
         this.approach(id, w);
         return;
@@ -305,6 +339,7 @@ export class CoveScene extends Phaser.Scene {
     }
     const tx = Math.floor(x / TILE);
     const ty = Math.floor(y / TILE);
+    if (this.tapObject(x, y, tx, ty)) return;
     const id = this.art.ids[Math.floor(y) * WORLD_W + Math.floor(x)];
     if (id === 5) {
       // la mare : on s'approche du bord, puis on se penche sur l'eau
@@ -386,6 +421,19 @@ export class CoveScene extends Phaser.Scene {
           else this.audio?.play(choice.delta > 0 ? 'chime' : 'click');
           this.persist();
         },
+        gift: G.canGift(this.save.farm, id, this.save.clock.day) ? {
+          items: G.CROP_LIST.filter((c) => (this.save.farm.bag[c] ?? 0) > 0)
+            .map((c) => ({ key: c, label: `${G.CROPS[c].name} (×${this.save.farm.bag[c]})`, icon: itemUrl(c) })),
+          give: (key) => {
+            const res = G.giveGift(this.save.farm, rel, id, key as G.Crop, this.save.clock.day);
+            if (!res) return null;
+            this.emote(w, res.taste === 'neutral' ? null : 'heart');
+            this.audio?.play(res.taste === 'love' ? 'levelUp' : 'chime');
+            this.persist();
+            this.updateHud(true);
+            return { lines: res.reply, delta: G.GIFT_POINTS[res.taste] };
+          },
+        } : undefined,
         onClose: () => {
           if (conv.kind === 'small') finishSmallTalk(rel);
           w.busy = false;
@@ -567,6 +615,17 @@ export class CoveScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     if (!this.player) return;
     const dt = Math.min(delta, 100) / 1000;
+    const clock = this.save.clock;
+    if (!this.ui.open && !this.sleeping) {
+      const wasLate = clock.minute >= DAY_LATE;
+      tick(clock, dt);
+      if (!wasLate && clock.minute >= DAY_LATE) this.showHint('Minuit… Il serait temps de rentrer dormir.', 5000);
+      if (clock.minute >= DAY_MAX) this.sleep(true);
+    }
+    this.updateLighting(time);
+    this.updateSchedules();
+    this.hudT -= dt;
+    if (this.hudT <= 0) this.updateHud();
     this.stepWalker(this.player, dt, time);
     for (const [id, w] of this.npcs) {
       if (!w.busy) this.roam(w, time);
@@ -591,6 +650,374 @@ export class CoveScene extends Phaser.Scene {
     }
   }
 
+  // ------------------------------------------------------------ la journée
+
+  private setupLighting(): void {
+    if (!this.textures.exists('glow-warm')) {
+      const c = this.textures.createCanvas('glow-warm', 64, 64)!;
+      const ctx = c.getContext();
+      const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, 'rgba(255,220,140,0.9)');
+      g.addColorStop(0.35, 'rgba(255,180,90,0.35)');
+      g.addColorStop(1, 'rgba(255,160,80,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 64);
+      c.refresh();
+      const d = this.textures.createCanvas('firefly', 8, 8)!;
+      const dc = d.getContext();
+      const fg = dc.createRadialGradient(4, 4, 0, 4, 4, 4);
+      fg.addColorStop(0, 'rgba(240,255,160,1)');
+      fg.addColorStop(0.4, 'rgba(200,255,120,0.6)');
+      fg.addColorStop(1, 'rgba(200,255,120,0)');
+      dc.fillStyle = fg;
+      dc.fillRect(0, 0, 8, 8);
+      d.refresh();
+    }
+    this.lightRect = this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0xffffff).setOrigin(0).setDepth(9700).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    const glow = (x: number, y: number, scale: number, base = 1) => {
+      const img = this.add.image(x, y, 'glow-warm').setDepth(9800).setBlendMode(Phaser.BlendModes.ADD).setScale(scale).setAlpha(0);
+      this.glows.push({ img, base });
+    };
+    for (const p of this.world.props) {
+      if (p.kind === 'lantern') {
+        glow(p.x, p.y - 20, 0.9);
+        glow(p.x, p.y - 2, 1.4, 0.35);
+      }
+    }
+    // fenêtres de la maison et de l'aquarium
+    const hx = (HOUSE.x + HOUSE.w / 2) * TILE - 56;
+    const hy = (HOUSE.y + HOUSE.h) * TILE + 6 - 96;
+    for (const [wx, wy] of [[27, 67], [85, 67], [30, 26]]) glow(hx + wx, hy + wy, 0.7, 0.8);
+    const ax = (AQUARIUM.x + 3.5) * TILE - 52;
+    const ay = (AQUARIUM.y + AQUARIUM.h) * TILE + 4 - 88;
+    glow(ax + 32, ay + 60, 1.1, 0.7);
+    for (let k = 0; k < 18; k++) {
+      const x = (3 + Math.random() * 30) * TILE;
+      const y = (6 + Math.random() * 22) * TILE;
+      const img = this.add.image(x, y, 'firefly').setDepth(9850).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      this.fireflies.push({ img, x, y, t: Math.random() * 100 });
+    }
+  }
+
+  private updateLighting(time: number): void {
+    const { multiply, dark } = lighting(hourOf(this.save.clock));
+    this.lightRect.setFillStyle(multiply);
+    for (const g of this.glows) g.img.setAlpha(dark * g.base * (0.9 + Math.sin(time / 300 + g.img.x) * 0.06));
+    const t = time / 1000;
+    for (const f of this.fireflies) {
+      f.img.setPosition(f.x + Math.sin(t * 0.4 + f.t) * 22 + Math.sin(t * 1.7 + f.t) * 4, f.y + Math.cos(t * 0.3 + f.t) * 14);
+      f.img.setAlpha(Math.max(0, dark - 0.4) * (0.5 + 0.5 * Math.sin(t * 2.2 + f.t * 3)));
+    }
+  }
+
+  /** Les habitués arrivent le matin et rentrent chez eux le soir. */
+  private updateSchedules(): void {
+    const h = hourOf(this.save.clock);
+    for (const [id, w] of this.npcs) {
+      const here = present(id, h);
+      const s = w.sprite;
+      if (here && !s.visible) {
+        const spot = SPOTS[id];
+        s.setPosition(spot.x * TILE, spot.y * TILE).setVisible(true).setAlpha(0);
+        this.tweens.add({ targets: s, alpha: 1, duration: 800 });
+        if (!this.save.rel[id].seen.includes('intro')) this.emote(w, 'excl');
+      } else if (!here && s.visible && !w.busy && s.alpha === 1) {
+        w.path = [];
+        this.emote(w, null);
+        this.tweens.add({ targets: s, alpha: 0, duration: 800, onComplete: () => s.setVisible(false) });
+      }
+    }
+  }
+
+  private makeHud(): HTMLElement {
+    const root = document.createElement('div');
+    root.className = 'cove-hud';
+    const card = document.createElement('div');
+    card.className = 'clock-card';
+    const date = document.createElement('div');
+    date.className = 'clock-date';
+    const time = document.createElement('div');
+    time.className = 'clock-time';
+    const sun = document.createElement('span');
+    sun.className = 'sun-ico';
+    const tt = document.createElement('span');
+    time.append(sun, tt);
+    const coins = document.createElement('div');
+    coins.className = 'clock-coins';
+    card.append(date, time, coins);
+    const bag = document.createElement('button');
+    bag.className = 'bag-btn';
+    const bi = document.createElement('img');
+    bi.src = iconUrl('bag', () => seedIcon('radis'));
+    bag.append(bi);
+    bag.addEventListener('click', () => this.openBag());
+    root.append(card, bag);
+    this.hud = { root, date, time: tt, sun, coins };
+    this.updateHud(true);
+    return root;
+  }
+
+  private updateHud(force = false): void {
+    this.hudT = 0.5;
+    if (!this.hud) return;
+    const c = this.save.clock;
+    this.hud.date.textContent = dateText(c.day);
+    this.hud.time.textContent = timeText(c.minute);
+    const h = hourOf(c);
+    this.hud.sun.className = h >= 19 || h < 6 ? 'sun-ico moon' : 'sun-ico';
+    this.hud.time.parentElement!.classList.toggle('late', c.minute >= DAY_LATE);
+    if (force || this.hud.coins.textContent !== String(this.save.farm.coins)) {
+      this.hud.coins.innerHTML = '<i></i>';
+      this.hud.coins.append(`${this.save.farm.coins}`);
+    }
+    this.hud.root.classList.toggle('hide', this.mode !== 'walk' || !!this.ui?.open);
+  }
+
+  private openBag(): void {
+    if (this.mode !== 'walk' || this.ui.open) return;
+    const f = this.save.farm;
+    const opts = [
+      ...G.CROP_LIST.filter((c) => f.bag[c]).map((c) => ({ label: `${G.CROPS[c].name} ×${f.bag[c]}`, sub: `${G.CROPS[c].sell} p.`, icon: itemUrl(c), disabled: true })),
+      ...G.CROP_LIST.filter((c) => f.seeds[c]).map((c) => ({ label: `Graines de ${G.CROPS[c].plural} ×${f.seeds[c]}`, icon: seedUrl(c), disabled: true })),
+    ];
+    this.ui.menu({
+      title: 'Ton sac',
+      text: opts.length ? 'Offre tes récoltes aux habitués, ou dépose-les dans le coffre près de la maison pour les vendre.' : 'Ton sac est vide. Les graines s’achètent au présentoir, près du potager.',
+      options: opts,
+      cancel: 'Fermer',
+    });
+  }
+
+  // ------------------------------------------------------------- le potager
+
+  private drawPlots(): void {
+    this.plotObjs.forEach((o) => o.destroy());
+    this.plotObjs = [];
+    this.save.farm.plots.forEach((p, i) => {
+      const tx = G.PLOT_X + (i % G.PLOT_COLS);
+      const ty = G.PLOT_Y + Math.floor(i / G.PLOT_COLS);
+      if (p.watered) this.plotObjs.push(this.add.rectangle(tx * TILE + 1, ty * TILE + 1, TILE - 2, TILE - 2, 0x1e0e08, 0.35).setOrigin(0).setDepth(-6.5));
+      if (!p.crop) return;
+      const st = G.stage(p);
+      const key = `crop-${p.crop}-${st}`;
+      addRaster(this, key, cropArt(p.crop, st));
+      const spr = this.add.image(tx * TILE + 8, ty * TILE + 17, key).setOrigin(0.5, 1).setDepth(ty * TILE + 14);
+      this.plotObjs.push(spr);
+      if (st === 3) {
+        const sp = this.add.circle(tx * TILE + 13, ty * TILE + 3, 1, 0xffffff).setDepth(9999);
+        this.tweens.add({ targets: sp, alpha: 0.1, yoyo: true, repeat: -1, duration: 500 });
+        this.plotObjs.push(sp);
+      }
+    });
+  }
+
+  /** Un objet du décor sous le doigt ? Le soigneur y va, puis agit. */
+  private tapObject(x: number, y: number, tx: number, ty: number): boolean {
+    const plot = G.plotIndex(tx, ty);
+    if (plot !== null) {
+      this.walkTo(this.player, { x: tx, y: ty }, () => this.plotAction(plot, tx, ty), { x: tx * TILE + 8, y: ty * TILE + 15 });
+      return true;
+    }
+    const near = (px: number, py: number, rx: number, ry: number) => Math.abs(x - px) < rx && y > py - ry && y < py + 3;
+    if (near(10.9 * TILE, 11.9 * TILE, 12, 18)) {
+      this.walkTo(this.player, { x: 10, y: 12 }, () => this.openBin());
+      return true;
+    }
+    if (near(6.7 * TILE, 12.9 * TILE, 14, 24)) {
+      this.walkTo(this.player, { x: 7, y: 13 }, () => this.openStand());
+      return true;
+    }
+    const hx = (HOUSE.x + HOUSE.w / 2) * TILE;
+    const hy = (HOUSE.y + HOUSE.h) * TILE + 6;
+    if (Math.abs(x - hx) < 56 && y > hy - 96 && y < hy) {
+      this.walkTo(this.player, { x: HOUSE.doorX, y: HOUSE.y + HOUSE.h }, () => {
+        this.face(this.player, hx, hy - 20);
+        this.openHouse();
+      }, { x: HOUSE.doorX * TILE + 8, y: (HOUSE.y + HOUSE.h) * TILE + 10 });
+      return true;
+    }
+    const ax = (AQUARIUM.x + 3.5) * TILE;
+    const ay = (AQUARIUM.y + AQUARIUM.h) * TILE + 4;
+    if (Math.abs(x - ax) < 52 && y > ay - 88 && y < ay) {
+      this.walkTo(this.player, { x: Math.floor(AQUARIUM.doorX), y: Math.floor(AQUARIUM.doorY) }, () => {
+        this.face(this.player, AQUARIUM.doorX * TILE, ay - 30);
+        this.openAquarium();
+      });
+      return true;
+    }
+    return false;
+  }
+
+  private plotAction(i: number, tx: number, ty: number): void {
+    const f = this.save.farm;
+    const p = f.plots[i];
+    this.face(this.player, tx * TILE + 8, ty * TILE);
+    if (!p.crop) {
+      const owned = G.CROP_LIST.filter((c) => (f.seeds[c] ?? 0) > 0);
+      this.ui.menu({
+        title: 'Que planter ici ?',
+        text: owned.length ? undefined : 'Tu n’as plus de graines. Le présentoir, à côté du potager, en vend.',
+        options: owned.map((c) => ({
+          label: `${G.CROPS[c].name} (×${f.seeds[c]})`, sub: G.CROPS[c].blurb, icon: seedUrl(c),
+          pick: () => {
+            G.plant(f, i, c);
+            this.audio?.play('place');
+            this.drawPlots();
+            this.persist();
+            this.showHint(`${G.CROPS[c].name} planté${c === 'fraise' || c === 'lavande' ? 'e' : ''} et arrosé${c === 'fraise' || c === 'lavande' ? 'e' : ''} !`, 2200);
+          },
+        })),
+        cancel: 'Rien pour l’instant',
+      });
+      return;
+    }
+    if (G.isReady(p)) {
+      const c = G.harvest(f, i)!;
+      this.audio?.play('coin');
+      const key = `itemtex-${c}`;
+      addRaster(this, key, itemIcon(c));
+      const pop = this.add.image(tx * TILE + 8, ty * TILE + 4, key).setDepth(9999);
+      this.tweens.add({ targets: pop, y: pop.y - 14, duration: 300, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: pop, x: this.player.sprite.x, y: this.player.sprite.y - 16, alpha: 0, scale: 0.5, delay: 500, duration: 350, onComplete: () => pop.destroy() });
+      this.drawPlots();
+      this.persist();
+      this.showHint(`+1 ${G.CROPS[c].name}`, 1600);
+      return;
+    }
+    if (G.water(f, i)) {
+      this.audio?.play('bubble');
+      for (let k = 0; k < 6; k++) {
+        const d = this.add.rectangle(tx * TILE + 3 + k * 2, ty * TILE - 2, 1, 2, 0x8ad8ff).setDepth(9999);
+        this.tweens.add({ targets: d, y: ty * TILE + 10, alpha: 0, delay: k * 50, duration: 400, onComplete: () => d.destroy() });
+      }
+      this.drawPlots();
+      this.persist();
+      const left = G.CROPS[p.crop].days - p.grown;
+      this.showHint(left > 1 ? `Arrosé. Encore ${left} nuits.` : 'Arrosé. Prêt demain matin !', 1800);
+      return;
+    }
+    this.showHint(`Déjà arrosé aujourd’hui. Encore ${G.CROPS[p.crop].days - p.grown} nuit(s).`, 1800);
+  }
+
+  private openStand(): void {
+    const f = this.save.farm;
+    this.ui.menu({
+      title: 'Présentoir à graines',
+      text: `Tu as ${f.coins} pièces. On paie dans la boîte en fer, c’est la confiance.`,
+      options: G.CROP_LIST.map((c) => ({
+        label: `Graines de ${G.CROPS[c].plural}`, sub: `${G.CROPS[c].seed} p. · ${G.CROPS[c].blurb}`, icon: seedUrl(c), disabled: f.coins < G.CROPS[c].seed,
+        pick: () => {
+          if (G.buySeed(f, c)) this.audio?.play('coin');
+          this.updateHud(true);
+          this.persist();
+          this.openStand();
+        },
+      })),
+      cancel: 'Merci, c’est tout',
+    });
+  }
+
+  private openBin(): void {
+    const f = this.save.farm;
+    const inBag = G.CROP_LIST.filter((c) => f.bag[c]);
+    const inBin = G.CROP_LIST.filter((c) => f.bin[c]);
+    this.ui.menu({
+      title: 'Coffre d’expédition',
+      text: `Ce que tu déposes ici est vendu pendant la nuit. Ce soir : ${G.binValue(f)} pièces.`,
+      options: [
+        ...inBag.map((c) => ({
+          label: `Déposer ${G.CROPS[c].plural} (×${f.bag[c]})`, sub: `${G.CROPS[c].sell} p. pièce`, icon: itemUrl(c),
+          pick: () => {
+            G.ship(f, c, f.bag[c]!);
+            this.audio?.play('place');
+            this.persist();
+            this.openBin();
+          },
+        })),
+        ...inBin.map((c) => ({
+          label: `Reprendre ${G.CROPS[c].plural} (×${f.bin[c]})`, icon: itemUrl(c),
+          pick: () => {
+            G.unship(f, c);
+            this.persist();
+            this.openBin();
+          },
+        })),
+      ],
+      cancel: inBag.length || inBin.length ? 'C’est bon' : 'Rien à expédier',
+    });
+  }
+
+  private openHouse(): void {
+    const c = this.save.clock;
+    const early = c.minute < 18 * 60;
+    this.ui.menu({
+      title: 'La maison du soigneur',
+      text: early ? `Il n’est que ${timeText(c.minute)}. La journée est encore belle…` : `Il est ${timeText(c.minute)}. Le lit a l’air très confortable.`,
+      options: [{ label: 'Aller dormir', sub: 'Finir la journée', pick: () => this.sleep(false) }],
+      cancel: 'Pas encore',
+    });
+  }
+
+  private openAquarium(): void {
+    this.ui.menu({
+      title: 'L’aquarium de la crique',
+      text: 'Derrière la grande baie, tes aquariums et leurs pensionnaires t’attendent.',
+      options: [{
+        label: 'Entrer', sub: 'Ouvre ton aquarium',
+        pick: () => {
+          this.persist();
+          location.href = location.pathname;
+        },
+      }],
+      cancel: 'Plus tard',
+    });
+  }
+
+  /** Fin de journée : fondu, les plantes poussent, le coffre est vendu, nouveau matin. */
+  private sleep(passedOut: boolean): void {
+    if (this.sleeping) return;
+    this.sleeping = true;
+    this.ui.close();
+    this.veil.textContent = passedOut ? 'Tu t’endors d’épuisement…' : 'Bonne nuit…';
+    this.veil.classList.add('on');
+    this.audio?.play('chime');
+    this.time.delayedCall(1300, () => {
+      const f = this.save.farm;
+      const day = this.save.clock.day;
+      const recap = G.night(f);
+      if (passedOut) f.coins = Math.max(0, f.coins - 10);
+      this.save.clock = { day: day + 1, minute: DAY_START };
+      this.player.path = [];
+      this.player.sprite.setPosition(HOUSE.doorX * TILE + 8, (HOUSE.y + HOUSE.h) * TILE + 12);
+      this.face(this.player, this.player.sprite.x, this.player.sprite.y + 10);
+      this.cameras.main.centerOn(this.player.sprite.x, this.player.sprite.y);
+      for (const [id, w] of this.npcs) {
+        w.path = [];
+        w.sprite.setPosition(SPOTS[id].x * TILE, SPOTS[id].y * TILE);
+      }
+      this.drawPlots();
+      this.persist();
+      this.updateHud(true);
+      const lines = [
+        ...recap.sold.map((s) => `${G.CROPS[s.crop].name} ×${s.qty} … ${s.coins} p.`),
+        recap.total ? `Ventes de la nuit : ${recap.total} pièces.` : 'Rien n’a été vendu cette nuit.',
+        recap.grew ? `${recap.grew} plante${recap.grew > 1 ? 's ont' : ' a'} poussé${recap.ready ? `, ${recap.ready} prête${recap.ready > 1 ? 's' : ''} à récolter` : ''}.` : 'Pense à arroser ton potager.',
+        passedOut ? 'Tu t’es endormi dehors… Marcel t’a ramené. (-10 pièces pour le café.)' : '',
+      ].filter(Boolean);
+      this.ui.menu({
+        title: `Fin du jour ${day}`,
+        text: lines.join('\n'),
+        options: [],
+        cancel: `Bonjour, ${dateText(day + 1).toLowerCase()} !`,
+        onClose: () => {
+          this.veil.classList.remove('on');
+          this.sleeping = false;
+          this.audio?.play('bubble');
+        },
+      });
+    });
+  }
+
   // ------------------------------------------------------------- décors
 
   /** Planche de contrôle : personnages et portraits agrandis (?crique&sheet). */
@@ -612,7 +1039,7 @@ export class CoveScene extends Phaser.Scene {
   }
 
   private placeProp(p: Prop): void {
-    const unique = ['cottage', 'pier', 'boat', 'mailbox', 'bench', 'fence'].includes(p.kind);
+    const unique = ['cottage', 'pier', 'boat', 'mailbox', 'bench', 'fence', 'lantern', 'bin', 'stand', 'aquarium'].includes(p.kind);
     const s = p.seed % 12;
     const key = `cove-${p.kind}-${unique ? 0 : s}`;
     switch (p.kind) {
@@ -633,6 +1060,14 @@ export class CoveScene extends Phaser.Scene {
       case 'mailbox': addRaster(this, key, mailbox()); break;
       case 'bench': addRaster(this, key, bench()); break;
       case 'boat': addRaster(this, key, boat()); break;
+      case 'lantern': addRaster(this, key, lantern()); break;
+      case 'bin': addRaster(this, key, shippingBin()); break;
+      case 'stand': addRaster(this, key, seedStand()); break;
+      case 'aquarium': addRaster(this, key, aquariumHall()); break;
+    }
+    if (p.kind === 'aquarium') {
+      const sign = textTexture(this.textures, 'AQUARIUM', '#1f6a78', null, 'small');
+      this.add.image(Math.round(p.x), Math.round(p.y - 88 + 21), sign).setDepth(p.y + 0.5);
     }
     if (p.kind === 'pier') {
       this.add.image(p.x, p.y, key).setOrigin(0.5, 0).setDepth(-5);

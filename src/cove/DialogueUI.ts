@@ -24,6 +24,19 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: s
 export interface DialogueHooks {
   onChoice(choice: Choice): void;
   onClose(): void;
+  /** Proposé à la fin de la conversation s'il y a quelque chose à offrir. */
+  gift?: {
+    items: { key: string; label: string; icon: string }[];
+    give(key: string): { lines: Line[]; delta: number } | null;
+  };
+}
+
+export interface MenuOption {
+  label: string;
+  sub?: string;
+  icon?: string;
+  disabled?: boolean;
+  pick?: () => void;
 }
 
 export class DialogueUI {
@@ -133,14 +146,48 @@ export class DialogueUI {
     };
     let advance: (() => void) | null = null;
     let closing = false;
+    const bye = () => {
+      if (closing) return;
+      closing = true;
+      this.close();
+      hooks.onClose();
+    };
+    let giftOffered = false;
     const finish = () => {
+      const g = hooks.gift;
+      if (g && g.items.length && !giftOffered) {
+        giftOffered = true;
+        next.classList.remove('on');
+        advance = null;
+        const offer = el('button', 'dlg-choice gift', 'Offrir quelque chose…');
+        const leave = el('button', 'dlg-choice', 'À plus tard !');
+        offer.addEventListener('click', () => {
+          choices.replaceChildren();
+          for (const it of g.items) {
+            const b = el('button', 'dlg-choice item');
+            const ic = el('img', 'dlg-item-icon');
+            ic.src = it.icon;
+            b.append(ic, document.createTextNode(it.label));
+            b.addEventListener('click', () => {
+              choices.replaceChildren();
+              const res = g.give(it.key);
+              if (!res) return finish();
+              renderHearts();
+              this.pop(frame, res.delta, false);
+              play(res.lines, finish);
+            });
+            choices.append(b);
+          }
+          const back = el('button', 'dlg-choice', 'Finalement, non');
+          back.addEventListener('click', bye);
+          choices.append(back);
+        });
+        leave.addEventListener('click', bye);
+        choices.append(offer, leave);
+        return;
+      }
       next.classList.add('on');
-      advance = () => {
-        if (closing) return;
-        closing = true;
-        this.close();
-        hooks.onClose();
-      };
+      advance = bye;
     };
     box.addEventListener('click', () => {
       if (typing) return finishTyping();
@@ -167,6 +214,47 @@ export class DialogueUI {
     };
 
     play(script.lines, () => (script.topic ? offerChoices(script.topic) : finish()));
+  }
+
+  /** Menu au style parchemin (sans portrait) : planter, coffre, dormir… */
+  menu(o: { title: string; text?: string; options: MenuOption[]; cancel?: string; onClose?: () => void }): void {
+    this.close();
+    const wrap = el('div', 'dlg menu');
+    const box = el('div', 'dlg-box');
+    box.append(el('div', 'dlg-title', o.title));
+    if (o.text) box.append(el('div', 'dlg-text small', o.text));
+    const choices = el('div', 'dlg-choices');
+    const done = () => {
+      this.close();
+      o.onClose?.();
+    };
+    for (const opt of o.options) {
+      const b = el('button', `dlg-choice${opt.icon ? ' item' : ''}`);
+      if (opt.icon) {
+        const ic = el('img', 'dlg-item-icon');
+        ic.src = opt.icon;
+        b.append(ic);
+      }
+      const label = el('span', 'dlg-label', opt.label);
+      if (opt.sub) label.append(el('span', 'dlg-sub', opt.sub));
+      b.append(label);
+      if (opt.disabled) b.disabled = true;
+      b.addEventListener('click', () => {
+        this.close();
+        if (opt.pick) opt.pick();
+        else o.onClose?.();
+      });
+      choices.append(b);
+    }
+    if (o.cancel) {
+      const c = el('button', 'dlg-choice cancel', o.cancel);
+      c.addEventListener('click', done);
+      choices.append(c);
+    }
+    wrap.append(box, choices);
+    this.root.append(wrap);
+    this.box = wrap;
+    requestAnimationFrame(() => wrap.classList.add('in'));
   }
 
   /** Petit cœur (ou nuage) qui s'envole du portrait selon la réaction. */

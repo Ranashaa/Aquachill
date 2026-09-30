@@ -19,6 +19,23 @@ Paramètres d’URL utiles pour le développement :
 - `?gallery` : affiche tous les sprites générés (page de test visuelle)
 - `?speed=10` : accélère la simulation ×10
 
+## La crique (`?crique`)
+
+Une crique vue de dessus, entièrement peinte par le code (sol calculé pixel par pixel,
+arbres, maisons, personnages et portraits), mise en cache dans le navigateur.
+
+- **On touche un endroit, le soigneur y va** (recherche de chemin A*). En arrivant près d'un
+  habitué ou de la mare, la caméra se rapproche : c'est le *focus*.
+- **Dialogues façon Stardew** : grands portraits animés (6 humeurs, clignement, bouche qui
+  parle), choix qui changent la relation (cœurs), répliques qui se souviennent de tes
+  réponses, et cadeaux (chaque habitué a ses préférés).
+- **Journée** : horloge de 6 h à 2 h (environ 14 minutes), lumière du matin, du soir et de
+  la nuit, lanternes et lucioles ; les habitués arrivent le matin et rentrent le soir. On
+  dort dans la maison, avec un bilan de la nuit.
+- **Potager** : graines au présentoir, arrosage quotidien, récolte, coffre d'expédition vendu
+  la nuit.
+- **La mare aux koïs** à nourrir, et **l'aquarium du village**, qui ouvre le jeu d'aquarium.
+
 ## Une journée de soigneur (inspirée de Stardew Valley)
 
 - **Ton soigneur** : touche un endroit de la tour, il y va à pied et prend l’ascenseur-bulle

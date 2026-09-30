@@ -8,6 +8,7 @@ import { AquariumScene } from './scenes/AquariumScene';
 import { BootScene } from './scenes/BootScene';
 import { CoveScene } from './cove/CoveScene';
 import './cove/cove.css';
+import { loadGround } from './cove/groundCache';
 import { TowerScene } from './scenes/TowerScene';
 import { services } from './services';
 import { createNewState } from './state/GameState';
@@ -28,12 +29,20 @@ const params = new URLSearchParams(location.search);
 if (params.has('crique')) {
   // maquette de la crique vue de dessus
   const audio = new AudioEngine(false, 'waves');
-  const cove = new Phaser.Game({
-    type: Phaser.AUTO, parent: 'game', width: GAME_W, height: GAME_H, pixelArt: true, backgroundColor: '#2a78b4',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER }, scene: [new CoveScene(audio)],
+  const loading = document.createElement('div');
+  loading.className = 'cove-loading';
+  loading.innerHTML = '<div class="cove-loading-sun"></div><p>La crique s’éveille…</p>';
+  app.append(loading);
+  void loadGround().then((art) => {
+    const cove = new Phaser.Game({
+      type: Phaser.AUTO, parent: 'game', width: GAME_W, height: GAME_H, pixelArt: true, backgroundColor: '#2a78b4',
+      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.NO_CENTER }, scene: [new CoveScene(audio, art)],
+    });
+    loading.classList.add('out');
+    setTimeout(() => loading.remove(), 700);
+    if (import.meta.env.DEV) (window as any).cove = cove;
   });
   document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
-  if (import.meta.env.DEV) (window as any).cove = cove;
 } else {
   startTower();
 }

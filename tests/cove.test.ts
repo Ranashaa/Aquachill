@@ -77,3 +77,77 @@ describe('crique : dialogues et relations', () => {
     expect(r.points).toBe(0);
   });
 });
+
+import { dateText, DAY_MAX, lighting, newClock, present, tick, timeText } from '../src/cove/time';
+
+describe('crique : le temps', () => {
+  it('l’horloge avance et s’arrête à 2 h', () => {
+    const c = newClock();
+    tick(c, 7);
+    expect(timeText(c.minute)).toBe('06:10');
+    tick(c, 1e7);
+    expect(c.minute).toBe(DAY_MAX);
+    expect(timeText(c.minute)).toBe('02:00');
+    expect(dateText(29)).toBe('Été, jour 1');
+  });
+
+  it('la lumière est neutre à midi, sombre la nuit', () => {
+    expect(lighting(12).multiply).toBe(0xffffff);
+    expect(lighting(12).dark).toBe(0);
+    expect(lighting(23).dark).toBe(1);
+    expect(lighting(19).multiply).not.toBe(0xffffff);
+  });
+
+  it('les habitués rentrent chez eux le soir', () => {
+    expect(present('lila', 12)).toBe(true);
+    expect(present('lila', 20)).toBe(false);
+    expect(present('nina', 21)).toBe(true);
+  });
+});
+
+import * as G from '../src/cove/garden';
+
+describe('crique : le potager', () => {
+  it('planter, arroser, récolter, vendre', () => {
+    const f = G.newFarm();
+    expect(G.plant(f, 0, 'radis')).toBe(true);
+    expect(G.plant(f, 0, 'radis')).toBe(false);
+    expect(G.night(f).grew).toBe(1);
+    // sans arrosage, rien ne pousse
+    expect(G.night(f).grew).toBe(0);
+    expect(G.water(f, 0)).toBe(true);
+    expect(G.water(f, 0)).toBe(false);
+    expect(G.night(f).ready).toBe(1);
+    expect(G.harvest(f, 0)).toBe('radis');
+    expect(f.plots[0].crop).toBeNull();
+    expect(G.ship(f, 'radis', 5)).toBe(1);
+    const coins = f.coins;
+    expect(G.night(f).total).toBe(28);
+    expect(f.coins).toBe(coins + 28);
+  });
+
+  it('les fraises repoussent', () => {
+    const f = G.newFarm();
+    G.plant(f, 1, 'fraise');
+    for (let d = 0; d < 3; d++) {
+      G.water(f, 1);
+      G.night(f);
+    }
+    expect(G.harvest(f, 1)).toBe('fraise');
+    expect(f.plots[1].crop).toBe('fraise');
+    expect(G.stage(f.plots[1])).toBe(1);
+  });
+
+  it('un cadeau par jour, selon les goûts', () => {
+    const f = G.newFarm();
+    const rel = { points: 0, seen: [], flags: [], lastTopicAt: 0, lastGreetDay: '', smallIndex: 0 };
+    f.bag = { fraise: 2 };
+    expect(G.giveGift(f, rel, 'lila', 'fraise', 1)?.taste).toBe('love');
+    expect(rel.points).toBe(80);
+    expect(G.giveGift(f, rel, 'lila', 'fraise', 1)).toBeNull();
+    expect(G.giveGift(f, rel, 'lila', 'fraise', 2)?.taste).toBe('love');
+    expect(G.plotIndex(2, 13)).toBe(0);
+    expect(G.plotIndex(5, 15)).toBe(11);
+    expect(G.plotIndex(6, 15)).toBeNull();
+  });
+});

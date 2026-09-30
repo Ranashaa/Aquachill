@@ -73,7 +73,11 @@ export function groundAt(tx: number, ty: number): Ground {
 export const PATHS: [number, number][][] = [
   [[9.5, 11], [9.5, 15], [10.2, 18], [12, 21], [13.6, 24], [14.4, 27.5], [15.6, 31], [16.9, 35.5]],
   [[9.8, 16.5], [13, 16.8], [17, 16], [20.5, 15.2]],
+  [[10.2, 18], [8.4, 21], [6.8, 24.5], [5.9, 26.6]],
 ];
+
+/** L'aquarium du village (en tuiles) : bâtiment et porte d'entrée. */
+export const AQUARIUM = { x: 1, y: 20, w: 7, h: 6, doorX: 5.9, doorY: 26.3 };
 
 export const isWater = (g: Ground) => g === 'sea' || g === 'pond';
 
