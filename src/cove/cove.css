@@ -1,0 +1,84 @@
+/* ---------------------------------------------------------- la crique */
+
+#ui.cove { pointer-events: none; }
+#ui.cove > * { pointer-events: auto; }
+
+.focus-vignette {
+  position: absolute; inset: 0; pointer-events: none !important;
+  background: radial-gradient(ellipse at 50% 30%, transparent 35%, rgba(24, 12, 40, 0.55) 100%);
+  opacity: 0; transition: opacity 0.6s;
+}
+.focus-vignette.on { opacity: 1; }
+
+.cove-hint {
+  position: absolute; left: 50%; top: calc(var(--px) * 6); transform: translateX(-50%);
+  background: rgba(42, 26, 44, 0.72); color: #fff4e0; border-radius: calc(var(--px) * 4);
+  padding: calc(var(--px) * 2) calc(var(--px) * 4); font-size: calc(var(--px) * 5.5); white-space: nowrap;
+  pointer-events: none !important; opacity: 0; transition: opacity 0.5s;
+}
+.cove-hint.on { opacity: 1; }
+
+.dlg {
+  position: absolute; left: calc(var(--px) * 4); right: calc(var(--px) * 4); bottom: calc(var(--px) * 4);
+  display: flex; flex-direction: column; gap: calc(var(--px) * 2);
+  transform: translateY(110%); transition: transform 0.35s cubic-bezier(.2,.9,.3,1.1);
+  font-family: 'Pixelify Sans', sans-serif; color: #4a2a1a;
+}
+.dlg.in { transform: none; }
+.dlg-top { display: flex; align-items: flex-end; gap: calc(var(--px) * 3); }
+.dlg-frame {
+  position: relative;
+  width: calc(var(--px) * 72); height: calc(var(--px) * 72);
+  background: linear-gradient(#bfe6ef, #8ccfe0 60%, #f4e2b8 60%, #e8cf98);
+  border: calc(var(--px) * 2) solid #7a4a28;
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #e8b070, 0 calc(var(--px) * 1.5) 0 #3a2418;
+  border-radius: calc(var(--px) * 2);
+  overflow: visible;
+}
+.dlg-portrait { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+.dlg-plate {
+  flex: 1; margin-bottom: calc(var(--px) * 1);
+  background: #f4e2b8; border: calc(var(--px) * 1.5) solid #7a4a28; border-radius: calc(var(--px) * 2);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #fff4d8, 0 calc(var(--px) * 1) 0 #3a2418;
+  padding: calc(var(--px) * 2) calc(var(--px) * 3);
+}
+.dlg-name { font-weight: 700; font-size: calc(var(--px) * 8); color: #6a2a1a; }
+.dlg-role { font-size: calc(var(--px) * 5); color: #8a5a3a; margin-bottom: calc(var(--px) * 1); }
+.dlg-hearts { display: flex; flex-wrap: wrap; gap: calc(var(--px) * 0.5); font-size: calc(var(--px) * 6); line-height: 1; }
+.dlg-hearts .h { color: #d8c0a0; }
+.dlg-hearts .h.on { color: #e8405a; text-shadow: 0 calc(var(--px) * 0.5) 0 #8a1a2a; }
+.dlg-box {
+  position: relative; min-height: calc(var(--px) * 40);
+  background: #fbeccb; border: calc(var(--px) * 2) solid #7a4a28; border-radius: calc(var(--px) * 3);
+  box-shadow: inset 0 0 0 calc(var(--px) * 1) #e8b070, inset 0 0 0 calc(var(--px) * 2.5) #fff6de, 0 calc(var(--px) * 2) 0 #3a2418;
+  padding: calc(var(--px) * 5) calc(var(--px) * 6);
+  cursor: pointer;
+}
+.dlg-text { font-size: calc(var(--px) * 7); line-height: 1.35; white-space: pre-line; }
+.dlg-next {
+  position: absolute; right: calc(var(--px) * 5); bottom: calc(var(--px) * 2);
+  font-size: calc(var(--px) * 5); color: #c0603a; opacity: 0;
+}
+.dlg-next.on { opacity: 1; animation: dlg-bob 0.8s ease-in-out infinite; }
+@keyframes dlg-bob { 50% { transform: translateY(calc(var(--px) * 1.5)); } }
+.dlg-choices { display: flex; flex-direction: column; gap: calc(var(--px) * 2); }
+.dlg-choices:empty { display: none; }
+.dlg-choice {
+  font: inherit; font-size: calc(var(--px) * 6.5); text-align: left; color: #4a2a1a;
+  background: #fff6de; border: calc(var(--px) * 1.5) solid #b07a48; border-radius: calc(var(--px) * 3);
+  padding: calc(var(--px) * 3) calc(var(--px) * 4);
+  box-shadow: 0 calc(var(--px) * 1) 0 #7a4a28;
+  animation: dlg-choice-in 0.3s ease-out both; cursor: pointer;
+}
+.dlg-choice::before { content: '▸ '; color: #d0703a; }
+.dlg-choice:active { transform: translateY(calc(var(--px) * 1)); box-shadow: none; background: #ffe8b8; }
+@keyframes dlg-choice-in { from { opacity: 0; transform: translateX(calc(var(--px) * -6)); } }
+.dlg-pop {
+  position: absolute; left: 50%; top: 10%; transform: translateX(-50%);
+  font-weight: 700; font-size: calc(var(--px) * 10); pointer-events: none;
+  animation: dlg-pop 1.4s ease-out forwards;
+}
+.dlg-pop.good { color: #ff4a6a; text-shadow: 0 calc(var(--px) * 1) 0 #7a1a2a; }
+.dlg-pop.bad { color: #8a8aa0; text-shadow: 0 calc(var(--px) * 1) 0 #3a3a4a; }
+.dlg-pop.meh { color: #c0a080; }
+@keyframes dlg-pop { from { opacity: 0; transform: translate(-50%, 20%) scale(0.6); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); } to { opacity: 0; transform: translate(-50%, -120%) scale(1); } }
