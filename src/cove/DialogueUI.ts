@@ -4,7 +4,7 @@ import { CHARACTERS, hearts, MAX_HEARTS, type Choice, type Line, type Npc, type 
 import { portrait, type Mood } from './portraits';
 
 const cache = new Map<string, string>();
-export function portraitUrl(id: Npc, mood: Mood, variant: 'base' | 'talk' | 'blink'): string {
+export function portraitUrl(id: Npc | 'octave', mood: Mood, variant: 'base' | 'talk' | 'blink'): string {
   const key = `${id}:${mood}:${variant}`;
   let url = cache.get(key);
   if (!url) {
@@ -50,9 +50,9 @@ export class DialogueUI {
     return !!this.box;
   }
 
-  show(id: Npc, rel: Relation, script: { lines: Line[]; topic?: Topic }, hooks: DialogueHooks): void {
+  show(id: Npc | 'octave', rel: Relation, script: { lines: Line[]; topic?: Topic }, hooks: DialogueHooks, who?: { name: string; role: string }): void {
     this.close();
-    const c = CHARACTERS[id];
+    const c = who ?? CHARACTERS[id as Npc];
     const wrap = el('div', 'dlg');
     const top = el('div', 'dlg-top');
     const frame = el('div', 'dlg-frame');
@@ -64,6 +64,7 @@ export class DialogueUI {
     const heartRow = el('div', 'dlg-hearts');
     const renderHearts = () => {
       heartRow.replaceChildren();
+      if (who) return;
       const n = hearts(rel);
       for (let i = 0; i < MAX_HEARTS; i++) heartRow.append(el('span', i < n ? 'h on' : 'h', '♥'));
     };

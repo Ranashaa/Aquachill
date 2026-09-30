@@ -67,7 +67,64 @@ export interface PortraitOpts {
   talk?: boolean;
 }
 
-export function portrait(id: Npc, o: PortraitOpts): Raster {
+/** Octave, le conservateur : un poulpe distingué, monocle et nœud papillon. */
+function octavePortrait(o: PortraitOpts): Raster {
+  const r = new Raster(S, S);
+  const c = tones('#b86ad0');
+  // tentacules qui s'enroulent en bas
+  for (let a = 0; a < 6; a++) {
+    const bx = 8 + a * 9.5;
+    for (let k = 0; k < 16; k++) {
+      const x = Math.round(bx + Math.sin(k / 3 + a) * 3);
+      const y = 44 + k;
+      r.ellipse(x, y, 3 - k * 0.1, 2, (nx, ny, px, py) => ramp(c, 0.55 - ny * 0.3 - nx * 0.2, px, py, 0.1));
+      if (k % 4 === 2) r.set(x, y + 1, c[4]);
+    }
+  }
+  // tête
+  r.ellipse(32, 26, 21, 22, (nx, ny, x, y) => {
+    let t = 0.62 - nx * 0.3 - ny * 0.3;
+    if (hash(x >> 1, y >> 1, 4) < 0.06) t += 0.3;
+    return ramp(c, t, x, y, 0.1);
+  });
+  // yeux
+  const m = o.mood;
+  for (const side of [-1, 1]) {
+    const ex = 32 + side * 9;
+    const ey = 28;
+    if (o.blink || m === 'happy') {
+      for (let k = -4; k <= 4; k++) r.set(ex + k, ey + (m === 'happy' && !o.blink ? -Math.round(Math.sqrt(16 - k * k) * 0.4) : 0), INK);
+    } else {
+      const big = m === 'surprised' ? 1.3 : 1;
+      r.ellipse(ex, ey, 5.5 * big, 6 * big, 0xfff8ec);
+      r.ellipse(ex + 1, ey + 1, 3, 3.5, (_nx, ny) => (ny < -0.3 ? hex('#3a2a4a') : hex('#1a1024')));
+      r.set(ex, ey - 1, 0xffffff);
+      r.set(ex - 1, ey - 1, 0xffffff);
+      if (m === 'sad' || m === 'grumpy') for (let k = -5; k <= 5; k++) r.set(ex + k, ey - 5 + (m === 'sad' ? (k * side > 0 ? 1 : 0) : (k * side > 0 ? 0 : 1)), c[0]);
+    }
+  }
+  // monocle doré et sa chaîne
+  for (let a = 0; a < 48; a++) {
+    const ang = (a / 48) * Math.PI * 2;
+    r.set(Math.round(41 + Math.cos(ang) * 7.5), Math.round(28 + Math.sin(ang) * 7.5), hex('#e0b048'));
+  }
+  for (let k = 0; k < 14; k++) r.set(47 + Math.floor(k / 3), 33 + k, k % 2 ? hex('#e0b048') : hex('#a87a28'));
+  // bouche et joues
+  if (m === 'surprised') r.ellipse(32, 38, 2, 2.5, INK);
+  else if (m === 'sad') for (let k = -3; k <= 3; k++) r.set(32 + k, 38 + (Math.abs(k) > 1 ? 1 : 0), INK);
+  else for (let k = -3; k <= 3; k++) r.set(32 + k, 38 - (Math.abs(k) > 1 ? 1 : 0), INK);
+  if (o.talk) r.rect(31, 38, 3, 2, hex('#6a1a3a'));
+  if (m === 'blush' || m === 'happy') for (const bx of [20, 42]) r.ellipse(bx, 35, 3, 1.5, mixRGB(c[2], hex('#ff6a8a'), 0.5));
+  // nœud papillon
+  r.ellipse(26, 47, 5, 3.5, hex('#e8453c'));
+  r.ellipse(38, 47, 5, 3.5, hex('#e8453c'));
+  r.ellipse(32, 47, 2.5, 2.5, hex('#a02a2a'));
+  r.outline(INK);
+  return r;
+}
+
+export function portrait(id: Npc | 'octave', o: PortraitOpts): Raster {
+  if (id === 'octave') return octavePortrait(o);
   const sp = SPECS[id];
   const r = new Raster(S, S);
   const skin = tones(sp.skin);

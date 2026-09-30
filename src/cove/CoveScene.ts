@@ -2,7 +2,7 @@
 // près d'un habitué ou de la mare, la caméra se rapproche (le « focus »).
 import Phaser from 'phaser';
 import type { GroundArt } from './ground';
-import { AQUARIUM, HOUSE, TILE, WORLD_H, WORLD_W, PIER } from './map';
+import { AQUARIUM, HOUSE, MAP_ROWS, TILE, WORLD_H, WORLD_W, PIER } from './map';
 import * as G from './garden';
 import { dateText, DAY_LATE, DAY_MAX, DAY_START, hourOf, lighting, newClock, present, tick, timeText, type Clock } from './time';
 import {
@@ -19,9 +19,16 @@ import { LOOKS, SPOTS, type CastId } from './cast';
 import { MOODS, portrait } from './portraits';
 import { findPath, nearestWalkable, smoothPath, walkable, type Pt } from './pathfind';
 import {
-  CHARACTERS, choose, confess, CONFESS, finishSmallTalk, greet, hearts, newRelation, nextConversation, type Npc, type Relation,
+  CHARACTERS, choose, confess, CONFESS, finishSmallTalk, greet, hearts, newRelation, nextConversation, type Line, type Npc, type Relation,
 } from './dialogue';
-import { DialogueUI } from './DialogueUI';
+import { DialogueUI, type MenuOption } from './DialogueUI';
+import * as MU from './museum';
+import { CREATURES, SKELETON_PARTS, TREASURES } from './museum';
+import { creatureArt, digSpotArt, ghostPart, netArt, octaveSprite, skeletonPart, treasureArt } from './museumArt';
+import {
+  DESK, ENTRY, EXIT, INFIRMARY, inMuseum, M_H, M_ROW0, M_W, M_Y, museumWalk, PEDESTALS, renderMuseum, TANKS, VITRINE,
+} from './museumMap';
+import { rescueOverlay } from './panels';
 import type { AudioEngine } from '../audio/AudioEngine';
 
 /** Enregistre une ou plusieurs images (côte à côte) comme texture Phaser à plusieurs frames. */
@@ -74,6 +81,7 @@ interface Save {
   clock: Clock;
   farm: G.Farm;
   profile?: Profile;
+  museum: MU.Museum;
 }
 
 const iconCache = new Map<string, string>();
@@ -91,13 +99,13 @@ const seedUrl = (c: G.Crop) => iconUrl(`seed-${c}`, () => seedIcon(c));
 function loadSave(): Save {
   const fresh: Save = {
     rel: Object.fromEntries(NPCS.map((n) => [n, newRelation()])) as Record<Npc, Relation>,
-    x: 9.5 * TILE, y: 12.5 * TILE, clock: newClock(), farm: G.newFarm(),
+    x: 9.5 * TILE, y: 12.5 * TILE, clock: newClock(), farm: G.newFarm(), museum: MU.newMuseum(),
   };
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return fresh;
     const data = JSON.parse(raw) as Partial<Save>;
-    return { ...fresh, ...data, rel: { ...fresh.rel, ...data.rel }, farm: { ...fresh.farm, ...data.farm } };
+    return { ...fresh, ...data, rel: { ...fresh.rel, ...data.rel }, farm: { ...fresh.farm, ...data.farm }, museum: { ...fresh.museum, ...data.museum } };
   } catch {
     return fresh;
   }
@@ -184,6 +192,11 @@ export class CoveScene extends Phaser.Scene {
       },
     });
     this.world = buildWorld();
+    // l'intérieur du musée est posé sous la crique, dans la même grille
+    while (this.world.walk.length < M_ROW0) this.world.walk.push(this.world.walk[0].map(() => false));
+    this.world.walk.push(...museumWalk());
+    this.textures.addCanvas('museum-bg', renderMuseum().toCanvas());
+    this.add.image(0, M_Y, 'museum-bg').setOrigin(0).setDepth(-10);
     for (const p of this.world.props) this.placeProp(p);
     this.time.addEvent({
       delay: 700, loop: true, callback: () => {
@@ -233,7 +246,9 @@ export class CoveScene extends Phaser.Scene {
     this.uiRoot = root;
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, WORLD_W, WORLD_H);
+    this.setArea(inMuseum(this.player.sprite.y) ? 'museum' : 'cove');
+    this.drawMuseum();
+    this.drawCoveExtras();
     cam.setRoundPixels(true);
     cam.startFollow(this.player.sprite, true, 0.12, 0.12, 0, 12);
     cam.centerOn(this.player.sprite.x, this.player.sprite.y);
@@ -362,13 +377,19 @@ export class CoveScene extends Phaser.Scene {
   // ------------------------------------------------------------- toucher
 
   private tap(x: number, y: number): void {
-    if (this.ui.open) return;
+    if (this.ui.open || this.rescuing) return;
+    if (this.area === 'museum') {
+      if (this.mode === 'walk') this.museumTap(x, y);
+      return;
+    }
     if (this.mode === 'pond') {
       if (this.art.ids[Math.floor(y) * WORLD_W + Math.floor(x)] === 5) this.dropFood(x, y);
       else this.unfocus();
       return;
     }
     if (this.mode !== 'walk') return;
+    // une mission, un point à creuser, la barque (prioritaires quand on vise juste)
+    if (this.tapExtras(x, y)) return;
     // un habitué ?
     for (const [id, w] of this.npcs) {
       const s = w.sprite;
@@ -703,6 +724,7 @@ export class CoveScene extends Phaser.Scene {
     }
     this.drawRod();
     this.updateKoi(dt, time);
+    if (this.area === 'museum') this.updateTanks(dt, time);
   }
 
   private persist(): void {
@@ -714,6 +736,561 @@ export class CoveScene extends Phaser.Scene {
     } catch {
       /* rien */
     }
+  }
+
+  // ------------------------------------------------------------ le musée
+
+  private area: 'cove' | 'museum' = 'cove';
+  private rescuing = false;
+  private questEl?: HTMLElement;
+  private museumObjs: Phaser.GameObjects.GameObject[] = [];
+  private swimmers: { s: Phaser.GameObjects.Sprite; x0: number; x1: number; y: number; vx: number; bottom: boolean; t: number }[] = [];
+  private extras: Phaser.GameObjects.GameObject[] = [];
+  private digCandidates: Pt[] = [];
+
+  private setArea(a: 'cove' | 'museum'): void {
+    this.area = a;
+    const cam = this.cameras.main;
+    if (a === 'museum') cam.setBounds(0, M_Y, M_W, M_H);
+    else cam.setBounds(0, 0, WORLD_W, WORLD_H);
+    cam.startFollow(this.player.sprite, true, 0.12, 0.12, 0, 12);
+    cam.centerOn(this.player.sprite.x, this.player.sprite.y);
+  }
+
+  private fadeTo(then: () => void): void {
+    const cam = this.cameras.main;
+    this.mode = 'talk';
+    cam.fadeOut(350, 20, 12, 30);
+    cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      then();
+      cam.fadeIn(400, 20, 12, 30);
+      this.mode = 'walk';
+      this.updateHud(true);
+    });
+  }
+
+  private enterMuseum(): void {
+    this.audio?.play('bubble');
+    this.fadeTo(() => {
+      this.player.path = [];
+      this.player.sprite.setPosition(ENTRY.col * TILE + 8, M_Y + ENTRY.row * TILE + 12);
+      this.face(this.player, this.player.sprite.x, this.player.sprite.y - 20);
+      this.setArea('museum');
+      this.drawMuseum();
+      this.persist();
+      if (!this.save.museum.metOctave) this.showHint('Octave, le conservateur, t’attend à son bureau', 3500);
+    });
+  }
+
+  private exitMuseum(): void {
+    this.fadeTo(() => {
+      this.player.path = [];
+      this.player.sprite.setPosition(AQUARIUM.doorX * TILE, (AQUARIUM.doorY + 0.6) * TILE);
+      this.face(this.player, this.player.sprite.x, this.player.sprite.y + 20);
+      this.setArea('cove');
+      this.persist();
+    });
+  }
+
+  /** Squelettes, trésors, créatures dans les bassins, Octave et le patient de l'infirmerie. */
+  private drawMuseum(): void {
+    this.museumObjs.forEach((o) => o.destroy());
+    this.museumObjs = [];
+    this.swimmers = [];
+    const m = this.save.museum;
+    const add = <T extends Phaser.GameObjects.GameObject>(o: T): T => {
+      this.museumObjs.push(o);
+      return o;
+    };
+    // squelettes : pièces données en os, pièces manquantes en pointillés
+    for (const sk of ['trex', 'plesio'] as const) {
+      const ped = PEDESTALS[sk];
+      const ox = sk === 'trex' ? ped.x - 12 : ped.x - 16;
+      const oy = M_Y + ped.y - (sk === 'trex' ? 70 : 58);
+      for (const part of SKELETON_PARTS) {
+        const have = m.finds.includes(`${sk}:${part}`);
+        const key = `sk-${sk}-${part}-${have ? 1 : 0}`;
+        addRaster(this, key, have ? skeletonPart(sk, part) : ghostPart(sk, part));
+        add(this.add.image(ox, oy, key).setOrigin(0).setDepth(M_Y + ped.y + 30));
+      }
+      const n = MU.skeletonProgress(m, sk);
+      add(this.add.image(ped.x + 48, M_Y + ped.y + 38, textTexture(this.textures, `${n}/8`, '#3a2a1a', null, 'small')).setDepth(M_Y + ped.y + 31));
+    }
+    // trésors dans la vitrine
+    TREASURES.forEach((t, i) => {
+      if (!m.finds.includes(`tresor:${t.id}`)) return;
+      addRaster(this, `tr-${t.id}`, treasureArt(t.id));
+      add(this.add.image(M_Y ? VITRINE.x + 18 + i * 30 : 0, M_Y + VITRINE.y + 14, `tr-${t.id}`).setDepth(M_Y + 60));
+    });
+    // créatures dans leurs bassins
+    for (const tank of TANKS) {
+      const list = CREATURES.filter((c) => c.habitat === tank.habitat && m.donated.includes(c.id));
+      list.forEach((c, k) => {
+        addRaster(this, `cr-${c.id}`, creatureArt(c.id));
+        const bottom = ['crabe', 'etoile', 'bernard', 'ecrevisse', 'triton', 'crevette'].includes(c.id);
+        const sprite = add(this.add.sprite(0, 0, `cr-${c.id}`, 0).setDepth(M_Y + 300));
+        const hw = sprite.width / 2;
+        const swimmersList = list.filter((x) => !['crabe', 'etoile', 'bernard', 'ecrevisse', 'triton', 'crevette'].includes(x.id));
+        const lane = swimmersList.indexOf(c);
+        const span = tank.h - 14 - sprite.height;
+        const y = bottom
+          ? M_Y + tank.y + tank.h - 4 - sprite.height / 2
+          : M_Y + tank.y + 4 + sprite.height / 2 + (swimmersList.length > 1 ? (lane / (swimmersList.length - 1)) * Math.max(0, span) : span / 2);
+        this.swimmers.push({ s: sprite, x0: tank.x + hw + 1, x1: tank.x + tank.w - hw - 1, y, vx: (bottom ? 3 : 8 + (k % 3) * 3) * (k % 2 ? -1 : 1), bottom, t: k * 1.7 });
+        sprite.setPosition(tank.x + tank.w * ((k + 1) / (list.length + 1)), y);
+      });
+      const label = textTexture(this.textures, MU.HABITAT_NAMES[tank.habitat].toUpperCase(), '#3a2a1a', null, 'small');
+      add(this.add.image(tank.x + tank.w / 2, M_Y + tank.y + tank.h + 6, label).setDepth(M_Y + 301));
+    }
+    // Octave derrière son bureau
+    addRaster(this, 'octave', octaveSprite());
+    const oct = add(this.add.sprite(DESK.x + 24, M_Y + DESK.y + 6, 'octave', 0).setOrigin(0.5, 1).setDepth(M_Y + DESK.y + 6));
+    this.time.addEvent({ delay: 600, loop: true, callback: () => oct.active && oct.setFrame((oct.frame.name as unknown as number) === 1 ? 0 : 1) });
+    if (!m.metOctave || (!m.mission && MU.nextMissionCreature(m)) || m.mission?.stage === 'carry' || m.bag.length) {
+      const e = add(this.add.image(oct.x, oct.y - 28, 'emote-excl').setDepth(9999));
+      this.tweens.add({ targets: e, y: e.y - 2, yoyo: true, repeat: -1, duration: 500 });
+    }
+    // le patient de l'infirmerie
+    if (m.mission?.stage === 'care') {
+      const c = MU.CREATURE_BY_ID[m.mission.creature];
+      addRaster(this, `cr-${c.id}`, creatureArt(c.id));
+      const p = add(this.add.sprite(INFIRMARY.x, M_Y + INFIRMARY.y, `cr-${c.id}`, 0).setDepth(M_Y + INFIRMARY.y + 20));
+      this.tweens.add({ targets: p, y: p.y - 1.5, yoyo: true, repeat: -1, duration: 1200, ease: 'Sine.easeInOut' });
+      if (m.mission.lastCare !== this.save.clock.day) {
+        const e = add(this.add.image(INFIRMARY.x, M_Y + INFIRMARY.y - 20, 'emote-excl').setDepth(9999));
+        this.tweens.add({ targets: e, y: e.y - 2, yoyo: true, repeat: -1, duration: 500 });
+      }
+    }
+  }
+
+  /** Petit geste de travail : on se penche, on se relève. */
+  private workAnim(): void {
+    const s = this.player.sprite;
+    this.tweens.add({ targets: s, y: s.y + 2, yoyo: true, repeat: 1, duration: 120 });
+  }
+
+  private updateTanks(dt: number, time: number): void {
+    for (const f of this.swimmers) {
+      f.s.x += f.vx * dt;
+      if (f.s.x < f.x0 || f.s.x > f.x1) {
+        f.vx = -f.vx;
+        f.s.x = Phaser.Math.Clamp(f.s.x, f.x0, f.x1);
+      }
+      f.s.setFlipX(f.vx < 0);
+      f.s.y = f.y + (f.bottom ? 0 : Math.sin(time / 900 + f.t) * 3);
+      f.s.setFrame(Math.floor(time / (f.bottom ? 500 : 260) + f.t) % 2);
+    }
+  }
+
+  private museumTap(x: number, y: number): void {
+    const ly = y - M_Y;
+    const go = (c: number, r: number, then: () => void) => this.walkTo(this.player, { x: c, y: M_ROW0 + r }, then);
+    if (Math.abs(x - (DESK.x + 24)) < 28 && ly > DESK.y - 24 && ly < DESK.y + 34) {
+      go(3, 33, () => {
+        this.face(this.player, DESK.x + 24, M_Y + DESK.y);
+        this.talkOctave();
+      });
+      return;
+    }
+    if (Math.abs(x - INFIRMARY.x) < 26 && ly > INFIRMARY.y - 28 && ly < INFIRMARY.y + 14) {
+      go(11, 33, () => {
+        this.face(this.player, INFIRMARY.x, M_Y + INFIRMARY.y);
+        this.infirmary();
+      });
+      return;
+    }
+    for (const t of TANKS) {
+      if (x >= t.x - 3 && x < t.x + t.w + 3 && ly >= t.y - 10 && ly < t.y + t.h + 14) {
+        go(Math.floor((t.x + t.w / 2) / TILE), 18, () => {
+          this.face(this.player, x, y - 30);
+          this.tankInfo(t.habitat);
+        });
+        return;
+      }
+    }
+    for (const sk of ['trex', 'plesio'] as const) {
+      const p = PEDESTALS[sk];
+      if (x >= p.x && x < p.x + 96 && ly >= p.y - 80 && ly < p.y + 48) {
+        go(Math.floor((p.x + 48) / TILE), 11, () => {
+          this.face(this.player, p.x + 48, M_Y + p.y);
+          this.skeletonInfo(sk);
+        });
+        return;
+      }
+    }
+    if (ly < VITRINE.y + VITRINE.h + 10) {
+      go(7, 3, () => {
+        this.face(this.player, x, M_Y);
+        this.vitrineInfo();
+      });
+      return;
+    }
+    if (ly >= EXIT.row * TILE - 10 && x >= 6 * TILE && x < 9 * TILE) {
+      go(EXIT.col, EXIT.row, () => this.exitMuseum());
+      return;
+    }
+    const tx = Math.floor(x / TILE);
+    const ty = Math.floor(y / TILE);
+    this.walkTo(this.player, { x: tx, y: ty });
+    this.ripple(x, y);
+  }
+
+  /** Octave parle (portrait de poulpe), puis `then`. */
+  private octaveSay(lines: Line[], then: () => void = () => this.unfocusIfTalking()): void {
+    this.mode = 'talk';
+    this.ui.show('octave', newRelation(), { lines }, { onChoice: () => undefined, onClose: then }, { name: 'Octave', role: 'Conservateur du musée' });
+  }
+
+  private unfocusIfTalking(): void {
+    if (this.mode === 'talk') this.unfocus();
+  }
+
+  private talkOctave(): void {
+    const m = this.save.museum;
+    this.focusOn(DESK.x + 24, M_Y + DESK.y, 2.6, 40);
+    if (!m.metOctave) {
+      m.metOctave = true;
+      this.persist();
+      this.octaveSay([
+        { text: 'Ah ! Un visiteur ! Bienvenue au musée de la crique !', mood: 'surprised' },
+        { text: 'Je suis Octave, conservateur. Huit bras : c’est très pratique pour épousseter les vitrines.', mood: 'happy' },
+        { text: 'Ici, nous soignons les créatures de la crique avant de les accueillir dans nos bassins.' },
+        { text: 'Et là-haut, la salle des fossiles ! Pour l’instant… surtout des socles vides. Si vous creusez la plage, apportez-moi vos trouvailles !', mood: 'blush' },
+      ], () => this.octaveMenu());
+      return;
+    }
+    this.octaveMenu();
+  }
+
+  private octaveMenu(): void {
+    const m = this.save.museum;
+    const opts: MenuOption[] = [];
+    if (m.bag.length) opts.push({ label: `Donner mes trouvailles (${m.bag.length})`, sub: 'Fossiles et trésors de la plage', pick: () => this.donateFinds() });
+    if (m.mission?.stage === 'carry') {
+      const c = MU.CREATURE_BY_ID[m.mission.creature];
+      opts.push({ label: `Confier : ${c.name}`, sub: 'À l’infirmerie, pour quelques jours de soins', pick: () => {
+        MU.admit(m);
+        this.persist();
+        this.drawMuseum();
+        this.audio?.play('chime');
+        this.octaveSay([
+          { text: `Oh, pauvre petite chose. Posons-la dans le bassin de soins.`, mood: 'sad' },
+          { text: `Passez la soigner une fois par jour. Dans ${c.careDays} jours, elle sera prête pour son bassin !`, mood: 'happy' },
+        ]);
+      } });
+    }
+    if (!m.mission && MU.nextMissionCreature(m)) {
+      opts.push({ label: 'Une mission ?', sub: 'Une créature de la crique a besoin d’aide', pick: () => {
+        const id = MU.assignMission(m)!;
+        const c = MU.CREATURE_BY_ID[id];
+        this.persist();
+        this.drawMuseum();
+        this.drawCoveExtras();
+        this.updateHud(true);
+        this.octaveSay([{ text: c.rescue.story, mood: 'sad' }, { text: 'Allez-y vite ! Je l’ai noté sous votre horloge, pour ne pas l’oublier.', mood: 'happy' }]);
+      } });
+    }
+    if (m.mission?.stage === 'find') {
+      const c = MU.CREATURE_BY_ID[m.mission.creature];
+      opts.push({ label: 'Rappelle-moi la mission', pick: () => this.octaveSay([{ text: c.rescue.story }]) });
+    }
+    if (!m.mission && !MU.nextMissionCreature(m) && MU.canSail(m, this.save.clock.day)) {
+      opts.push({ label: 'Et maintenant ?', pick: () => this.octaveSay([{ text: 'Toutes les créatures de la crique sont sauvées ! Il reste le grand large… Maëlle vous y emmènera, au ponton.', mood: 'happy' }]) });
+    }
+    const total = CREATURES.length;
+    this.mode = 'talk';
+    this.ui.menu({
+      title: 'Octave, conservateur',
+      text: `Aquarium : ${m.donated.length}/${total} · Fossiles : ${m.finds.length}/${MU.ALL_FINDS.length}${MU.seaUnlocked(m) ? ' · La mer est ouverte !' : ''}`,
+      options: opts,
+      cancel: 'Au revoir, Octave',
+      onClose: () => this.unfocus(),
+    });
+  }
+
+  private donateFinds(): void {
+    const m = this.save.museum;
+    const given = MU.donateFinds(m);
+    this.persist();
+    this.drawMuseum();
+    this.audio?.play('levelUp');
+    const lines: Line[] = [];
+    for (const f of given) {
+      const [kind, key] = f.split(':');
+      if (kind === 'tresor') {
+        const t = TREASURES.find((x) => x.id === key)!;
+        lines.push({ text: `${t.name} ! Magnifique.`, mood: 'surprised' }, { text: t.fact, mood: 'happy' });
+      } else {
+        const sk = kind as MU.Skeleton;
+        lines.push({ text: `${MU.findName(f)} ! Je l’installe tout de suite sur le squelette.`, mood: 'happy' });
+        if (MU.skeletonProgress(m, sk) === 8) lines.push({ text: `Le ${MU.SKELETONS[sk].name.toLowerCase()} est complet ! Regardez-le !`, mood: 'surprised' }, { text: MU.SKELETONS[sk].fact, mood: 'happy' });
+      }
+    }
+    if (!lines.length) lines.push({ text: 'Hmm, tout cela est déjà exposé ! Mais merci.', mood: 'neutral' });
+    this.octaveSay(lines);
+  }
+
+  private infirmary(): void {
+    const m = this.save.museum;
+    if (m.mission?.stage !== 'care') {
+      this.showHint('Le bassin de soins est vide. Octave a peut-être une mission pour toi.', 2600);
+      return;
+    }
+    const c = MU.CREATURE_BY_ID[m.mission.creature];
+    const res = MU.care(m, this.save.clock.day);
+    this.persist();
+    if (res === 'done-today') {
+      this.showHint(`${c.name} se repose. Reviens demain pour le prochain soin.`, 2600);
+      return;
+    }
+    this.workAnim();
+    this.audio?.play('bubble');
+    for (let k = 0; k < 6; k++) {
+      const b = this.add.image(INFIRMARY.x - 8 + k * 3, M_Y + INFIRMARY.y - 4, 'emote-heart').setScale(0.4).setDepth(9999);
+      this.tweens.add({ targets: b, y: b.y - 16 - k * 2, alpha: 0, delay: k * 80, duration: 800, onComplete: () => b.destroy() });
+    }
+    const soin = ['Tu lui donnes à manger, tout doucement.', 'Tu changes l’eau du bassin de soins.', 'Tu nettoies délicatement sa blessure.'][(m.mission.cared - 1) % 3];
+    if (res === 'better') {
+      this.drawMuseum();
+      this.showHint(`${soin} ${c.name} va mieux (${m.mission.cared}/${c.careDays}).`, 3200);
+      return;
+    }
+    this.mode = 'talk';
+    this.ui.menu({
+      title: `${c.name} est guéri·e !`,
+      text: `${soin} Il est temps de rejoindre le bassin « ${MU.HABITAT_NAMES[c.habitat]} ».`,
+      options: [{ label: 'Le relâcher dans son bassin', pick: () => {
+        MU.release(m);
+        this.persist();
+        this.drawMuseum();
+        this.updateHud(true);
+        this.audio?.play('levelUp');
+        const lines: Line[] = [{ text: `Regardez-le nager ! ${c.name}, bienvenue chez vous.`, mood: 'happy' }, { text: c.fact, mood: 'neutral' }];
+        if (m.donated.length === MU.SEA_UNLOCK) lines.push({ text: 'Au fait… Maëlle dit que vous avez le pied marin. Allez la voir au ponton : elle vous emmènera sauver des créatures au large !', mood: 'surprised' });
+        this.focusOn(DESK.x + 24, M_Y + DESK.y, 2.6, 40);
+        this.octaveSay(lines);
+      } }],
+      onClose: () => { this.mode = 'walk'; },
+    });
+  }
+
+  private tankInfo(h: MU.Habitat): void {
+    const m = this.save.museum;
+    const list = CREATURES.filter((c) => c.habitat === h);
+    this.mode = 'talk';
+    this.ui.menu({
+      title: `${MU.HABITAT_NAMES[h]} · ${list.filter((c) => m.donated.includes(c.id)).length}/${list.length}`,
+      text: h === 'large' ? 'Les créatures du large se sauvent en mer, avec Maëlle.' : 'Les créatures sauvées dans la crique, soignées par tes soins.',
+      options: list.map((c) => m.donated.includes(c.id)
+        ? { label: c.name, sub: c.fact, icon: iconUrl(`cri-${c.id}`, () => creatureArt(c.id)[0]), disabled: true }
+        : { label: '???', sub: 'Pas encore sauvé·e', disabled: true }),
+      cancel: 'Continuer la visite',
+      onClose: () => { this.mode = 'walk'; },
+    });
+  }
+
+  private skeletonInfo(sk: MU.Skeleton): void {
+    const m = this.save.museum;
+    const S = MU.SKELETONS[sk];
+    const n = MU.skeletonProgress(m, sk);
+    this.mode = 'talk';
+    this.ui.menu({
+      title: `${S.name} · ${n}/8`,
+      text: n === 8 ? S.fact : 'Les pièces manquantes sont dessinées en pointillés. Creuse la plage pour les trouver !',
+      options: SKELETON_PARTS.map((p) => ({ label: m.finds.includes(`${sk}:${p}`) ? S.parts[p] : '???', disabled: true })),
+      cancel: 'Continuer la visite',
+      onClose: () => { this.mode = 'walk'; },
+    });
+  }
+
+  private vitrineInfo(): void {
+    const m = this.save.museum;
+    this.mode = 'talk';
+    this.ui.menu({
+      title: `Trésors du rivage · ${TREASURES.filter((t) => m.finds.includes(`tresor:${t.id}`)).length}/${TREASURES.length}`,
+      options: TREASURES.map((t) => m.finds.includes(`tresor:${t.id}`)
+        ? { label: t.name, sub: t.fact, icon: iconUrl(`tri-${t.id}`, () => treasureArt(t.id)), disabled: true }
+        : { label: '???', disabled: true }),
+      cancel: 'Continuer la visite',
+      onClose: () => { this.mode = 'walk'; },
+    });
+  }
+
+  // --------------------------------------------- missions et fouilles dans la crique
+
+  private questText(): string {
+    const m = this.save.museum;
+    const ms = m.mission;
+    if (ms) {
+      const c = MU.CREATURE_BY_ID[ms.creature];
+      if (ms.stage === 'find') return `À sauver : ${c.name}`;
+      if (ms.stage === 'carry') return `Ramène ${c.name} à Octave`;
+      return `Soins : ${c.name} (${ms.cared}/${c.careDays})`;
+    }
+    if (!m.metOctave) return 'Va voir le musée, près de la plage';
+    if (MU.nextMissionCreature(m)) return 'Octave a une mission pour toi';
+    if (MU.canSail(m, this.save.clock.day)) return 'Maëlle t’attend au ponton';
+    return '';
+  }
+
+  /** Marqueur de mission, points à creuser, barque de Maëlle. */
+  private drawCoveExtras(): void {
+    this.extras.forEach((o) => o.destroy());
+    this.extras = [];
+    const m = this.save.museum;
+    const day = this.save.clock.day;
+    if (!this.digCandidates.length) {
+      for (let ty = 0; ty < 44; ty++) for (let tx = 0; tx < 36; tx++) {
+        const ch = MAP_ROWS[ty]?.[tx];
+        if ((ch === 's' || ch === ',') && this.world.walk[ty][tx] && G.plotIndex(tx, ty) === null) this.digCandidates.push({ x: tx, y: ty });
+      }
+    }
+    if (m.dugToday.day !== day) m.dugToday = { day, spots: [] };
+    addRaster(this, 'digspot', digSpotArt());
+    for (const i of MU.digSpots(day, this.digCandidates.length)) {
+      if (m.dugToday.spots.includes(i)) continue;
+      const p = this.digCandidates[i];
+      const s = this.add.sprite(p.x * TILE + 8, p.y * TILE + 10, 'digspot', 0).setDepth(-6);
+      this.time.addEvent({ delay: 400, loop: true, callback: () => s.active && s.setFrame((s.frame.name as unknown as number) === 1 ? 0 : 1) });
+      s.setData('dig', i);
+      this.extras.push(s);
+    }
+    const ms = m.mission;
+    if (ms?.stage === 'find') {
+      const c = MU.CREATURE_BY_ID[ms.creature];
+      if (c.spot) {
+        addRaster(this, `cr-${c.id}`, creatureArt(c.id));
+        addRaster(this, 'net', netArt());
+        const x = c.spot[0] * TILE + 8;
+        const y = c.spot[1] * TILE + 10;
+        const cr = this.add.sprite(x, y, `cr-${c.id}`, 0).setDepth(y).setScale(0.8);
+        const net = this.add.image(x, y, 'net').setDepth(y + 0.1).setScale(0.9);
+        const e = this.add.image(x, y - 16, 'emote-excl').setDepth(9999);
+        this.tweens.add({ targets: e, y: e.y - 2, yoyo: true, repeat: -1, duration: 500 });
+        this.tweens.add({ targets: cr, x: x + 1, yoyo: true, repeat: -1, duration: 180 });
+        cr.setData('mission', true);
+        this.extras.push(cr, net, e);
+      }
+    }
+  }
+
+  private tapExtras(x: number, y: number): boolean {
+    const m = this.save.museum;
+    for (const o of this.extras) {
+      const s = o as Phaser.GameObjects.Sprite;
+      if (!s.getData) continue;
+      if (Math.abs(s.x - x) > 10 || Math.abs(s.y - y) > 10) continue;
+      if (s.getData('mission')) {
+        const c = MU.CREATURE_BY_ID[m.mission!.creature];
+        const [sx, sy] = c.spot!;
+        this.walkTo(this.player, { x: sx, y: sy }, () => {
+          this.face(this.player, s.x, s.y);
+          this.focusOn(s.x, s.y, 3, 0);
+          this.startRescue(c.id, 'cove');
+        });
+        return true;
+      }
+      const i = s.getData('dig') as number | undefined;
+      if (i !== undefined) {
+        const p = this.digCandidates[i];
+        this.walkTo(this.player, { x: p.x, y: p.y }, () => this.digAt(i, s));
+        return true;
+      }
+    }
+    // la barque de Maëlle, au bout du ponton
+    const bx = (PIER.x + PIER.w) * TILE + 20;
+    const by = (PIER.y + 4) * TILE;
+    if (Math.abs(x - bx) < 20 && Math.abs(y - by) < 14) {
+      this.walkTo(this.player, { x: PIER.x + 1, y: PIER.y + 4 }, () => this.openBoat());
+      return true;
+    }
+    return false;
+  }
+
+  private digAt(i: number, s: Phaser.GameObjects.Sprite): void {
+    const m = this.save.museum;
+    const res = MU.dig(m, this.save.clock.day, i, Math.random);
+    if (!res) return;
+    this.workAnim();
+    this.audio?.play('scrub');
+    s.destroy();
+    this.extras = this.extras.filter((o) => o !== s);
+    const [kind, key] = res.find.split(':');
+    const icon = kind === 'tresor' ? iconUrl(`tri-${key}`, () => treasureArt(key)) : iconUrl('bone', () => skeletonPart('trex', 'cou'));
+    if (res.duplicate) this.save.farm.coins += 30;
+    this.persist();
+    this.updateHud(true);
+    this.mode = 'talk';
+    this.ui.menu({
+      title: res.duplicate ? 'Encore un !' : 'Une trouvaille !',
+      text: res.duplicate
+        ? `${MU.findName(res.find)}… Le musée en a déjà un. Octave te le rachète pour sa réserve : +30 pièces.`
+        : `${MU.findName(res.find)} ! Apporte-le à Octave, au musée.`,
+      options: [{ label: MU.findName(res.find), icon, disabled: true }],
+      cancel: 'Super !',
+      onClose: () => { this.mode = 'walk'; },
+    });
+  }
+
+  private openBoat(): void {
+    const m = this.save.museum;
+    const day = this.save.clock.day;
+    const maelle = this.npcs.get('maelle')!;
+    const here = maelle.sprite.visible;
+    let text: string;
+    const options: MenuOption[] = [];
+    if (!MU.seaUnlocked(m)) text = `« La Mouette », le bateau de Maëlle. Elle t’emmènera en mer quand l’aquarium aura ${MU.SEA_UNLOCK} pensionnaires (${m.donated.length}/${MU.SEA_UNLOCK}).`;
+    else if (m.mission) text = 'Maëlle : « Finis d’abord la mission en cours. Un sauvetage à la fois. »';
+    else if (m.lastSeaDay === day) text = 'Maëlle : « Une sortie par jour. La mer a besoin de repos, et moi aussi. »';
+    else if (!here) text = 'Maëlle n’est pas là. Elle sort en mer le matin et en journée.';
+    else if (!MU.canSail(m, day)) text = 'Toutes les créatures du large ont été sauvées. Bravo !';
+    else {
+      text = 'Maëlle : « Prête… ou prêt ? Le large nous attend. On ne sait jamais qui on va croiser. »';
+      options.push({ label: 'Partir en mer avec Maëlle', pick: () => this.sailAway() });
+    }
+    this.mode = 'talk';
+    this.ui.menu({ title: 'La Mouette', text, options, cancel: 'Plus tard', onClose: () => { this.mode = 'walk'; } });
+  }
+
+  private sailAway(): void {
+    const id = MU.sail(this.save.museum, this.save.clock.day, Math.random);
+    if (!id) return;
+    this.persist();
+    this.veil.textContent = 'Au large, avec Maëlle…';
+    this.veil.classList.add('on');
+    this.audio?.play('chime');
+    this.time.delayedCall(1200, () => this.startRescue(id, 'sea'));
+  }
+
+  private startRescue(id: string, where: 'cove' | 'sea'): void {
+    const c = MU.CREATURE_BY_ID[id];
+    this.rescuing = true;
+    this.mode = 'talk';
+    this.updateHud(true);
+    const story = where === 'sea'
+      ? `Un ${c.name.toLowerCase()} est pris au piège ! Maëlle approche le bateau tout doucement.`
+      : c.rescue.story;
+    rescueOverlay(this.uiRoot, {
+      art: creatureArt(id)[0].toCanvas().toDataURL(),
+      net: netArt().toCanvas().toDataURL(),
+      scene: where === 'sea' ? 'sea' : c.habitat === 'mare' ? 'pond' : 'beach',
+      title: c.name, story, verb: c.rescue.verb, taps: c.rescue.taps,
+      done: where === 'sea' ? `Libre ! Maëlle le hisse délicatement à bord, dans un bac d’eau de mer. « On le ramène à Octave. »` : c.rescue.done,
+      onTap: () => this.audio?.play('scrub'),
+    }, () => {
+      MU.rescued(this.save.museum);
+      this.rescuing = false;
+      this.audio?.play('levelUp');
+      this.persist();
+      this.drawCoveExtras();
+      this.drawMuseum();
+      if (where === 'sea') {
+        this.veil.classList.remove('on');
+        this.mode = 'walk';
+      } else this.unfocus();
+      this.updateHud(true);
+      this.showHint(`Ramène ${c.name} à Octave, au musée`, 3500);
+    });
   }
 
   // ------------------------------------------------------------ la journée
@@ -829,7 +1406,10 @@ export class CoveScene extends Phaser.Scene {
     time.append(sun, tt);
     const coins = document.createElement('div');
     coins.className = 'clock-coins';
-    card.append(date, time, coins);
+    const quest = document.createElement('div');
+    quest.className = 'clock-quest';
+    card.append(date, time, coins, quest);
+    this.questEl = quest;
     const bag = document.createElement('button');
     bag.className = 'bag-btn';
     const bi = document.createElement('img');
@@ -849,6 +1429,7 @@ export class CoveScene extends Phaser.Scene {
   private updateHud(force = false): void {
     this.hudT = 0.5;
     if (!this.hud) return;
+    if (this.questEl) this.questEl.textContent = this.questText();
     const c = this.save.clock;
     this.hud.date.textContent = dateText(c.day);
     this.hud.time.textContent = timeText(c.minute);
@@ -1050,12 +1631,11 @@ export class CoveScene extends Phaser.Scene {
   private openAquarium(): void {
     this.ui.menu({
       title: 'L’aquarium de la crique',
-      text: 'Derrière la grande baie, tes aquariums et leurs pensionnaires t’attendent.',
+      text: 'Un grand musée : les bassins des créatures sauvées, et les squelettes de la salle des fossiles.',
       options: [{
-        label: 'Entrer', sub: 'Ouvre ton aquarium',
+        label: 'Entrer', sub: 'Le musée, l’aquarium et Octave, le conservateur',
         pick: () => {
-          this.persist();
-          location.href = location.pathname;
+          this.enterMuseum();
         },
       }],
       cancel: 'Plus tard',
@@ -1085,6 +1665,9 @@ export class CoveScene extends Phaser.Scene {
         w.sprite.setPosition(SPOTS[id].x * TILE, SPOTS[id].y * TILE);
       }
       this.drawPlots();
+      if (this.area === 'museum') this.setArea('cove');
+      this.drawCoveExtras();
+      this.drawMuseum();
       this.persist();
       this.updateHud(true);
       const lines = [
@@ -1112,6 +1695,23 @@ export class CoveScene extends Phaser.Scene {
   /** Planche de contrôle : personnages et portraits agrandis (?crique&sheet). */
   private showSheets(): void {
     this.cameras.main.setBackgroundColor('#5ca84c');
+    if (new URLSearchParams(location.search).has('museum')) {
+      CREATURES.forEach((c, i) => {
+        addRaster(this, `cr-${c.id}`, creatureArt(c.id));
+        this.add.image(4 + (i % 5) * 46, 6 + Math.floor(i / 5) * 34, `cr-${c.id}`).setOrigin(0);
+      });
+      (['trex', 'plesio'] as const).forEach((sk, k) => SKELETON_PARTS.forEach((p, j) => {
+        addRaster(this, `sk-${sk}-${p}`, j < 5 ? skeletonPart(sk, p) : ghostPart(sk, p));
+        this.add.image(0, 140 + k * 82, `sk-${sk}-${p}`).setOrigin(0);
+      }));
+      TREASURES.forEach((t, i) => {
+        addRaster(this, `tr-${t.id}`, treasureArt(t.id));
+        this.add.image(130 + i * 16, 310, `tr-${t.id}`).setOrigin(0);
+      });
+      addRaster(this, 'octave', octaveSprite());
+      this.add.image(130, 140, 'octave').setOrigin(0).setScale(2);
+      return;
+    }
     const pid = new URLSearchParams(location.search).get('portraits');
     if (pid) {
       MOODS.forEach((m, i) => {

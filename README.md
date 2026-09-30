@@ -34,7 +34,21 @@ arbres, maisons, personnages et portraits), mise en cache dans le navigateur.
   dort dans la maison, avec un bilan de la nuit.
 - **Potager** : graines au présentoir, arrosage quotidien, récolte, coffre d'expédition vendu
   la nuit.
-- **La mare aux koïs** à nourrir, et **l'aquarium du village**, qui ouvre le jeu d'aquarium.
+- **La mare aux koïs** à nourrir.
+- **Ton personnage** : prénom, apparence, genre (femme, homme, non-binaire) et attirance
+  (femmes, hommes, tout le monde, personne). Les répliques s'accordent à ton genre.
+- **Huit habitants** : Marcel, Lila, la Pr Gobie, Nina, Élio, Maëlle, Yanis et Camille. Chaque
+  adulte a son orientation, suggérée par un petit pin's et révélée par une confidence ; à
+  6 cœurs, on peut se déclarer : couple si l'attirance est réciproque, sinon un refus doux
+  et l'amitié reste. Carnet des relations (connaissance, ami·e, ami·e proche, meilleur·e
+  ami·e, en couple).
+- **Le musée-aquarium** (façon Animal Crossing), un grand bâtiment en trois salles :
+  - Octave, le conservateur (un poulpe à monocle), confie des missions : chaque créature de
+    la crique est à sauver (filet, flaque, ronces…), à soigner quelques jours à
+    l'infirmerie, puis elle nage dans son bassin (la mare, le rivage, le large) ;
+  - après 5 pensionnaires, Maëlle emmène en mer sauver une créature du large au hasard ;
+  - chaque jour, des points à creuser sur la plage : fossiles et trésors ; les squelettes de
+    tyrannosaure et de plésiosaure se complètent pièce par pièce dans la salle des fossiles.
 
 ## Une journée de soigneur (inspirée de Stardew Valley)
 

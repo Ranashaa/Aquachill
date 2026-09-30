@@ -151,3 +151,68 @@ export function openSocial(root: HTMLElement, rel: Record<Npc, Relation>, p: Pro
   });
   body.append(ok);
 }
+
+export interface RescueOpts {
+  art: string;
+  net: string;
+  scene: 'sea' | 'pond' | 'beach';
+  title: string;
+  story: string;
+  verb: string;
+  taps: number;
+  done: string;
+  onTap?: () => void;
+}
+
+/** Le sauvetage : on touche plusieurs fois pour libérer la créature, puis elle saute de joie. */
+export function rescueOverlay(root: HTMLElement, o: RescueOpts, finished: () => void): void {
+  const wrap = el('div', `rescue ${o.scene}`);
+  const card = el('div', 'rescue-card');
+  const stage = el('div', 'rescue-stage');
+  const creature = el('img', 'rescue-creature');
+  creature.src = o.art;
+  const net = el('img', 'rescue-net');
+  net.src = o.net;
+  stage.append(creature, net);
+  const title = el('div', 'sheet-title', o.title);
+  const story = el('div', 'rescue-story', o.story);
+  const dots = el('div', 'rescue-dots');
+  const hint = el('div', 'rescue-hint', `Touche pour : ${o.verb.toLowerCase()}`);
+  card.append(title, stage, story, dots, hint);
+  wrap.append(card);
+  root.append(wrap);
+  requestAnimationFrame(() => wrap.classList.add('in'));
+  let n = 0;
+  const renderDots = () => dots.replaceChildren(...Array.from({ length: o.taps }, (_, i) => el('span', i < n ? 'on' : '', '●')));
+  renderDots();
+  let finishedTaps = false;
+  stage.addEventListener('click', () => {
+    if (finishedTaps) return;
+    n++;
+    o.onTap?.();
+    renderDots();
+    net.style.opacity = String(1 - n / o.taps);
+    stage.classList.remove('shake');
+    void stage.offsetWidth;
+    stage.classList.add('shake');
+    if (n < o.taps) return;
+    finishedTaps = true;
+    net.remove();
+    creature.classList.add('free');
+    story.textContent = o.done;
+    hint.remove();
+    for (let k = 0; k < 6; k++) {
+      const h = el('span', 'rescue-heart', '♥');
+      h.style.left = `${20 + k * 12}%`;
+      h.style.animationDelay = `${k * 90}ms`;
+      stage.append(h);
+    }
+    const ok = el('button', 'sheet-ok', 'Continuer');
+    ok.addEventListener('click', () => {
+      wrap.classList.remove('in');
+      setTimeout(() => wrap.remove(), 300);
+      finished();
+    });
+    card.append(ok);
+  });
+}

@@ -214,3 +214,61 @@ describe('crique : relations et romances', () => {
     expect(confess('camille', rel(300), { ...base, gender: 'n', attraction: 'all' }).accepted).toBe(true);
   });
 });
+
+import * as M from '../src/cove/museum';
+import { baseWalkable as walkGrid } from '../src/cove/map';
+
+describe('crique : le musée-aquarium', () => {
+  it('chaque créature de mission est trouvable à pied dans la crique', () => {
+    const g = walkGrid();
+    for (const id of M.MISSION_ORDER) {
+      const c = M.CREATURE_BY_ID[id];
+      const [x, y] = c.spot!;
+      const near = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => g[y + dy]?.[x + dx]);
+      expect(near, id).toBe(true);
+      expect(c.rescue.story.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('mission : trouver, ramener, soigner un jour après l’autre, relâcher', () => {
+    const m = M.newMuseum();
+    expect(M.assignMission(m)).toBe('crabe');
+    expect(M.assignMission(m)).toBeNull();
+    expect(M.admit(m)).toBe(false);
+    expect(M.rescued(m)).toBe(true);
+    expect(M.admit(m)).toBe(true);
+    expect(M.care(m, 1)).toBe('better');
+    expect(M.care(m, 1)).toBe('done-today');
+    expect(M.release(m)).toBeNull();
+    expect(M.care(m, 2)).toBe('healed');
+    expect(M.release(m)).toBe('crabe');
+    expect(M.assignMission(m)).toBe('koi');
+  });
+
+  it('la mer s’ouvre après 5 dons, une sortie par jour, au hasard parmi le large', () => {
+    const m = M.newMuseum();
+    m.donated = M.MISSION_ORDER.slice(0, 4);
+    expect(M.canSail(m, 1)).toBe(false);
+    m.donated.push(M.MISSION_ORDER[4]);
+    expect(M.canSail(m, 1)).toBe(true);
+    const id = M.sail(m, 1, () => 0.5)!;
+    expect(M.CREATURE_BY_ID[id].habitat).toBe('large');
+    m.mission = null;
+    expect(M.canSail(m, 1)).toBe(false);
+    expect(M.canSail(m, 2)).toBe(true);
+  });
+
+  it('les fouilles complètent les squelettes pièce par pièce', () => {
+    const m = M.newMuseum();
+    const spots = M.digSpots(3, 20);
+    expect(new Set(spots).size).toBe(3);
+    let rng = 0;
+    const r = () => (rng = (rng + 0.37) % 1);
+    expect(M.dig(m, 3, spots[0], r)).not.toBeNull();
+    expect(M.dig(m, 3, spots[0], r)).toBeNull();
+    m.bag = ['trex:crane', 'trex:queue'];
+    expect(M.donateFinds(m)).toHaveLength(2);
+    expect(M.skeletonProgress(m, 'trex')).toBe(2);
+    expect(M.findName('trex:crane')).toBe('Crâne de tyrannosaure');
+  });
+});
